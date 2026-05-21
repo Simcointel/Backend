@@ -32,8 +32,8 @@ export class Router {
     this.routes.push({ method: "PUT", pattern, handler });
   }
 
-  match(method: string, url: string): { handler: RouteHandler; params: RouteParams } | null {
-    const parsed = new URL(url, "http://localhost");
+  match(method: string, url: string, baseUrl: string = "http://localhost"): { handler: RouteHandler; params: RouteParams } | null {
+    const parsed = new URL(url, baseUrl);
     const pathname = parsed.pathname;
 
     for (const route of this.routes) {

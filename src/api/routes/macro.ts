@@ -1,3 +1,4 @@
+import { getBaseUrl } from "../urlHelper.js";
 import { IncomingMessage, ServerResponse } from "http";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
@@ -82,7 +83,7 @@ export async function handleMacroHistory(req: IncomingMessage, res: ServerRespon
   const r = parseRealmParam(realm);
   if (r === null) return sendError(res, 400, "Invalid realm");
 
-  const url = new URL(req.url || "", "http://localhost");
+  const url = new URL(req.url || "", getBaseUrl(req));
   const from = url.searchParams.get("from") || undefined;
   const to = url.searchParams.get("to") || undefined;
   const limit = url.searchParams.get("limit") || undefined;
@@ -119,7 +120,7 @@ export async function handleMacroIndexes(req: IncomingMessage, res: ServerRespon
     .sort()
     .reverse();
 
-  const url = new URL(req.url || "", "http://localhost");
+  const url = new URL(req.url || "", getBaseUrl(req));
   const limit = parseInt(url.searchParams.get("limit") || "100", 10);
 
   const selected = files.slice(0, Math.min(limit, files.length));
@@ -146,7 +147,7 @@ export async function handleMacroInflation(req: IncomingMessage, res: ServerResp
     .sort()
     .reverse();
 
-  const url = new URL(req.url || "", "http://localhost");
+  const url = new URL(req.url || "", getBaseUrl(req));
   const limit = parseInt(url.searchParams.get("limit") || "100", 10);
 
   const selected = files.slice(0, Math.min(limit, files.length));

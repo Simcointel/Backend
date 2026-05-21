@@ -3,6 +3,7 @@ import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
 import { on as onEvent, emit } from "../events/eventBus.js";
 import { CHANNEL_MAP, type BusEvent } from "../events/eventTypes.js";
+import { getBaseUrl } from "./urlHelper.js";
 
 interface SseClient {
   id: string;
@@ -85,7 +86,7 @@ export function handleSseConnection(req: IncomingMessage, res: ServerResponse): 
     return;
   }
 
-  const url = new URL(req.url || "", "http://localhost");
+  const url = new URL(req.url || "", getBaseUrl(req));
   const channelsParam = url.searchParams.get("channels") || "dashboard,alerts";
   const channelSet = new Set(channelsParam.split(",").map((c) => c.trim()));
 

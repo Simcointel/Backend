@@ -1,3 +1,4 @@
+import { getBaseUrl } from "../urlHelper.js";
 import { IncomingMessage, ServerResponse } from "http";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
@@ -63,7 +64,7 @@ export async function handleRelationalContagion(req: IncomingMessage, res: Serve
 
 export async function handleRelationalAlerts(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const realms = collectRealms();
-  const url = new URL(req.url || "", "http://localhost");
+  const url = new URL(req.url || "", getBaseUrl(req));
   const limit = parseInt(url.searchParams.get("limit") || "100", 10);
 
   const result: Record<string, unknown> = {};
