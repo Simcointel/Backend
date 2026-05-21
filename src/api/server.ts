@@ -211,7 +211,7 @@ export function createApp(): Express {
   const app = express();
   const router = buildRouter();
 
-  app.all("*", async (req, res) => {
+  app.all("(.*)", async (req, res) => {
     requestLogger(req, res);
     enableCors(res);
 
