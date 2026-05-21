@@ -1,3 +1,4 @@
+import { getBaseUrl } from "../urlHelper.js";
 import { IncomingMessage, ServerResponse } from "http";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
@@ -22,8 +23,8 @@ function collectRealms(): number[] {
   return loadConfig().simco.realms;
 }
 
-function parseFilters(url: string): { severity?: string; category?: string; realm?: string; limit: number } {
-  const u = new URL(url, "http://localhost");
+function parseFilters(req: IncomingMessage): { severity?: string; category?: string; realm?: string; limit: number } {
+  const u = new URL(req.url || "", getBaseUrl(req));
   return {
     severity: u.searchParams.get("severity") || undefined,
     category: u.searchParams.get("category") || undefined,
@@ -68,7 +69,7 @@ export async function handleDashboardHealth(req: IncomingMessage, res: ServerRes
 }
 
 export async function handleDashboardEvents(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const filters = parseFilters(req.url || "");
+  const filters = parseFilters(req);
   const realms = filters.realm ? [parseInt(filters.realm.replace("realm-", ""), 10)].filter((n) => !isNaN(n)) : collectRealms();
   const result: Record<string, unknown> = {};
   for (const r of realms) {

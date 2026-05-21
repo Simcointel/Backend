@@ -1,3 +1,4 @@
+import { getBaseUrl } from "../urlHelper.js";
 import { IncomingMessage, ServerResponse } from "http";
 import { sendVersionedSuccess, sendVersionedError, getSchema } from "../contract.js";
 import { getSseClientCount } from "../sse.js";
@@ -43,7 +44,7 @@ export async function handleRealtimeSchema(req: IncomingMessage, res: ServerResp
 }
 
 export async function handleRealtimeHydration(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const url = new URL(req.url || "", "http://localhost");
+  const url = new URL(req.url || "", getBaseUrl(req));
   const compact = url.searchParams.get("compact") === "true";
   const payload = generateHydrationPayload();
 

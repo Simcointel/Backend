@@ -88,6 +88,7 @@ import {
   handleDependenciesGet,
   handleSimulationList,
 } from "./routes/forecast.js";
+import { getBaseUrl } from "./urlHelper.js";
 
 function buildRouter(): Router {
   const r = new Router();
@@ -211,19 +212,20 @@ export function createApp(): Express {
   const app = express();
   const router = buildRouter();
 
-  app.all("(.*)", async (req, res) => {
+  app.use(async (req, res) => {
     requestLogger(req, res);
     enableCors(res);
 
     if (await handleOptions(req, res)) return;
 
     const url = req.url || "/";
+    const baseUrl = getBaseUrl(req);
 
     try {
-      const match = router.match(req.method || "GET", url);
+      const match = router.match(req.method || "GET", url, baseUrl);
 
       if (!match) {
-        return sendError(res, 404, `No route: ${req.method} ${new URL(url, "http://localhost").pathname}`);
+        return sendError(res, 404, `No route: ${req.method} ${new URL(url, baseUrl).pathname}`);
       }
 
       const method = req.method || "GET";

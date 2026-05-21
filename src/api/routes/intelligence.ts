@@ -1,3 +1,4 @@
+import { getBaseUrl } from "../urlHelper.js";
 import { IncomingMessage, ServerResponse } from "http";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
@@ -42,8 +43,8 @@ function collectRealms(): number[] {
   return loadConfig().simco.realms;
 }
 
-function parseLimit(url: string): number {
-  const u = new URL(url, "http://localhost");
+function parseLimit(req: IncomingMessage): number {
+  const u = new URL(req.url || "", getBaseUrl(req));
   const l = parseInt(u.searchParams.get("limit") || "50", 10);
   return isNaN(l) ? 50 : l;
 }
