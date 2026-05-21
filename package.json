@@ -40,10 +40,12 @@
     "test:contracts": "vitest run src/__tests__/api/"
   },
   "dependencies": {
+    "adm-zip": "^0.5.17",
     "dotenv": "^16.4.7",
     "express": "^5.2.1"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/express": "^5.0.6",
     "@types/node": "^22.13.0",
     "@vitest/coverage-v8": "^4.1.7",
