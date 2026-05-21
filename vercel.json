@@ -1,17 +1,19 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
+  "framework": null,
+
   "builds": [
     {
       "src": "dist/index.js",
       "use": "@vercel/node"
     }
   ],
+
   "routes": [
-    { "src": "/api/(.*)", "dest": "dist/index.js" },
-    { "src": "/(.*)", "dest": "dist/index.js" }
-  ],
-  "env": {
-    "NODE_ENV": "production",
-    "LOG_LEVEL": "info"
-  }
+    {
+      "src": "/(.*)",
+      "dest": "dist/index.js"
+    }
+  ]
 }
