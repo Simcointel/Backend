@@ -1,0 +1,13 @@
+{
+  "profitMarginThresholds": {
+    "good": 0.15,
+    "average": 0.05
+  },
+  "defaultAdminOverheadPct": 0,
+  "defaultTransportCostMultiplier": 1,
+  "marketFeePct": 4,
+  "contractFeePct": 0,
+  "contractTransportDiscountPct": 50,
+  "robotWageReductionPct": 3,
+  "abundanceDecayRatePerDay": 0.032
+}

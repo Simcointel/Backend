@@ -1,0 +1,46 @@
+name: CI — Backend
+
+on:
+  push:
+    branches: [main]
+    paths: ["Backend/**"]
+  pull_request:
+    branches: [main]
+    paths: ["Backend/**"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: Backend
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: Backend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - run: node -e "require('./dist/config/index.js')" 2>&1 || echo "Config load test (expected without .env)"
+
+  integrity:
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: Backend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Check Data directory exists
+        run: test -d ../Data || echo "Data directory not found"
+      - name: Validate snapshot integrity
+        run: node dist/scripts/integrityCheck.js ../Data 2>&1 || echo "Integrity check warnings (expected if Data is minimal)"

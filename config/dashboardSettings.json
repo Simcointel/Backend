@@ -1,0 +1,13 @@
+{
+  "enableDashboardPipeline": true,
+  "dashboardStoreIntervalMinutes": 15,
+  "webhookEnabled": true,
+  "webhookBatchDelayMs": 500,
+  "scoreWeights": {
+    "economicHealth": { "cvGrowth": 0.4, "acGrowth": 0.3, "regimeScore": 0.3 },
+    "marketSentiment": { "momentum": 0.5, "volatility": 0.3, "trendStrength": 0.2 },
+    "stability": { "volatilityPenalty": 0.5, "stressPenalty": 0.5 },
+    "inflationPressure": { "avgInflation": 1.0 },
+    "systemicRisk": { "contagionIndex": 0.3, "stressLevel": 0.3, "anomalyCount": 0.2, "regimeRisk": 0.2 }
+  }
+}

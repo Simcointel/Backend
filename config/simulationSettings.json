@@ -1,0 +1,28 @@
+{
+  "enableSimulation": true,
+  "maxSimulationSteps": 10,
+  "shockMagnitudeDefault": 2.0,
+  "shockMagnitudeRange": { "min": 0.5, "max": 5.0 },
+  "propagationDecayFactor": 0.5,
+  "recoveryEstimateMonths": { "min": 1, "max": 24 },
+  "scenarios": {
+    "commodity-spike": { "category": "raw-materials", "shockPct": 50, "durationDays": 30, "description": "Sharp increase in raw material prices" },
+    "recession": { "category": "all", "shockPct": -15, "durationDays": 180, "description": "Broad economic contraction" },
+    "boom": { "category": "all", "shockPct": 25, "durationDays": 120, "description": "Rapid economic expansion" },
+    "supply-collapse": { "category": "industrial-goods", "shockPct": -40, "durationDays": 60, "description": "Industrial supply chain disruption" },
+    "inflation-surge": { "category": "consumer-goods", "shockPct": 30, "durationDays": 90, "description": "Rapid consumer price inflation" },
+    "deflation-event": { "category": "consumer-goods", "shockPct": -20, "durationDays": 120, "description": "Broad price deflation" },
+    "fuel-shortage": { "category": "energy-fuel", "shockPct": 60, "durationDays": 45, "description": "Energy supply crisis" },
+    "electronics-shortage": { "category": "electronics", "shockPct": -35, "durationDays": 90, "description": "Semiconductor and electronics shortage" },
+    "construction-boom": { "category": "construction", "shockPct": 40, "durationDays": 180, "description": "Construction sector expansion" }
+  },
+  "sectorDependencies": {
+    "energy-fuel": { "downstream": ["industrial-goods", "consumer-goods", "construction", "aerospace", "electronics"], "upstream": [], "weight": 0.8 },
+    "raw-materials": { "downstream": ["industrial-goods", "construction", "energy-fuel"], "upstream": [], "weight": 0.6 },
+    "industrial-goods": { "downstream": ["consumer-goods", "construction", "aerospace", "electronics"], "upstream": ["raw-materials", "energy-fuel"], "weight": 0.7 },
+    "electronics": { "downstream": ["consumer-goods", "aerospace", "industrial-goods"], "upstream": ["industrial-goods", "energy-fuel"], "weight": 0.5 },
+    "construction": { "downstream": [], "upstream": ["raw-materials", "industrial-goods", "energy-fuel"], "weight": 0.4 },
+    "consumer-goods": { "downstream": [], "upstream": ["industrial-goods", "raw-materials", "energy-fuel", "electronics"], "weight": 0.3 },
+    "aerospace": { "downstream": [], "upstream": ["industrial-goods", "electronics", "energy-fuel"], "weight": 0.4 }
+  }
+}

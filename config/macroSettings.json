@@ -1,0 +1,11 @@
+{
+  "enableRealmMetrics": true,
+  "enablePriceIndexes": true,
+  "enableInflationTracking": true,
+  "enableSummaryIngestion": true,
+  "inflationLookbackDays": 30,
+  "indexBaseDate": "2024-01-01",
+  "indexBaseValue": 100,
+  "summaryHistoryDays": 90,
+  "priceRetentionDays": 7
+}

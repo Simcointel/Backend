@@ -1,0 +1,18 @@
+{
+  "dependencyMatrix": {
+    "energy-fuel": { "raw-materials": 0.1, "industrial-goods": 0.2, "consumer-goods": 0.3, "construction": 0.2, "aerospace": 0.2, "electronics": 0.3 },
+    "raw-materials": { "energy-fuel": 0.4, "industrial-goods": 0.6, "consumer-goods": 0.5, "construction": 0.5, "aerospace": 0.3, "electronics": 0.3 },
+    "industrial-goods": { "energy-fuel": 0.5, "raw-materials": 0.7, "consumer-goods": 0.6, "construction": 0.6, "aerospace": 0.5, "electronics": 0.5 },
+    "electronics": { "energy-fuel": 0.3, "raw-materials": 0.2, "industrial-goods": 0.5, "consumer-goods": 0.4, "construction": 0.2, "aerospace": 0.5 },
+    "construction": { "energy-fuel": 0.4, "raw-materials": 0.5, "industrial-goods": 0.5, "consumer-goods": 0.1, "aerospace": 0.1, "electronics": 0.1 },
+    "consumer-goods": { "energy-fuel": 0.3, "raw-materials": 0.4, "industrial-goods": 0.5, "electronics": 0.3, "construction": 0.1, "aerospace": 0.1 },
+    "aerospace": { "energy-fuel": 0.3, "raw-materials": 0.2, "industrial-goods": 0.4, "electronics": 0.4, "consumer-goods": 0.1, "construction": 0.1 }
+  },
+  "bottleneckThreshold": 0.7,
+  "criticalResourceThreshold": 0.8,
+  "cascadeDepthMax": 5,
+  "dependencyRiskDecay": 0.6,
+  "upstreamPressureWeight": 0.4,
+  "downstreamPressureWeight": 0.3,
+  "substitutabilityFactor": 0.2
+}

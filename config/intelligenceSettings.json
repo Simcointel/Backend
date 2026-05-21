@@ -1,0 +1,18 @@
+{
+  "enableRealmIntelligence": true,
+  "enableMomentum": true,
+  "enableVolatility": true,
+  "enableStress": true,
+  "enableRegime": true,
+  "enableLeaders": true,
+  "shortTermPeriods": 5,
+  "mediumTermPeriods": 20,
+  "volatilityShortPeriods": 5,
+  "volatilityMediumPeriods": 20,
+  "volatilitySpikeThreshold": 2.0,
+  "rapidInflationThreshold": 5.0,
+  "collapseThreshold": -10.0,
+  "overheatingThreshold": 1.15,
+  "regimeHistoryRetentionYears": 5,
+  "momentumTrendStrengthPeriods": 14
+}

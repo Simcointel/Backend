@@ -1,0 +1,19 @@
+{
+  "enableCycleDetection": true,
+  "minCycleDays": 30,
+  "maxCycleDays": 730,
+  "expansionThresholds": { "cvGrowthMin": 0.5, "momentumMin": 0.5, "inflationMax": 3.0, "stressMax": 0.3 },
+  "speculativeThresholds": { "momentumMin": 3.0, "volatilityMax": 1.5, "accelerationPositive": true },
+  "overheatingThresholds": { "inflationMin": 3.0, "stressMin": 0.4, "volatilityMin": 2.0 },
+  "contractionThresholds": { "cvGrowthMax": -0.5, "momentumMin": -2.0, "stressMin": 0.3 },
+  "recoveryThresholds": { "cvGrowthMin": -0.5, "momentumTrendRising": true, "stressMax": 0.35 },
+  "regimeTransitionWeights": {
+    "expansion": { "speculative": 0.3, "overheating": 0.2, "contraction": 0.1, "recovery": 0.1 },
+    "speculative": { "overheating": 0.4, "expansion": 0.2, "contraction": 0.15 },
+    "overheating": { "contraction": 0.5, "expansion": 0.1, "recovery": 0.1 },
+    "contraction": { "recovery": 0.4, "stagnation": 0.3, "expansion": 0.1 },
+    "recovery": { "expansion": 0.5, "stagnation": 0.2, "contraction": 0.1 },
+    "stagnation": { "recovery": 0.3, "expansion": 0.2, "contraction": 0.15 }
+  },
+  "cycleStabilityWeights": { "duration": 0.3, "intensity": 0.3, "transitionCount": 0.2, "volatility": 0.2 }
+}

@@ -1,0 +1,10 @@
+{
+  "enableMarketFetch": true,
+  "enableSnapshotWrite": true,
+  "enableCommitPush": false,
+  "enableAggregation": true,
+  "enableAnalytics": true,
+  "enableRetentionCleanup": true,
+  "enableCompression": true,
+  "enableAlerting": false
+}

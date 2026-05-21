@@ -1,0 +1,52 @@
+{
+  "name": "simcointel-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Config-driven data pipeline for Sim Companies analytics",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js server",
+    "dev": "node --loader ts-node/esm src/index.ts",
+    "health": "node dist/index.js health",
+    "fetch": "node dist/index.js fetch",
+    "scheduler": "node dist/index.js scheduler",
+    "aggregate": "node dist/index.js aggregate",
+    "analytics": "node dist/index.js analytics",
+    "compress": "node dist/index.js compress",
+    "cleanup": "node dist/index.js cleanup",
+    "macro": "node dist/index.js macro",
+    "realm-status": "node dist/index.js realm-status",
+    "price-indexes": "node dist/index.js price-indexes",
+    "inflation": "node dist/index.js inflation",
+    "macro-history": "node dist/index.js macro-history",
+    "macro-backfill": "node dist/index.js macro-backfill",
+    "macro-archive": "node dist/index.js macro-archive",
+    "status": "node dist/index.js status",
+    "admin": "node dist/index.js admin",
+    "server": "node dist/index.js server",
+    "lint": "tsc --noEmit",
+    "integrity": "node dist/scripts/integrityCheck.js",
+    "storage-report": "node dist/scripts/storageReport.js",
+    "config-snapshot": "node dist/scripts/configSnapshot.js",
+    "backup": "node dist/scripts/backupSnapshot.js",
+    "check-env": "node -e \"require('./dist/scripts/envValidation.js').printEnvStatus()\"",
+    "public-export": "node dist/index.js public-export",
+    "test": "vitest run",
+    "test:unit": "vitest run --reporter=verbose",
+    "test:integration": "vitest run src/__tests__/pipelines/",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:contracts": "vitest run src/__tests__/api/"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@vitest/coverage-v8": "^4.1.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.7"
+  }
+}

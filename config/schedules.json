@@ -1,0 +1,10 @@
+{
+  "fetchIntervalMinutes": 15,
+  "snapshotRetentionDays": 90,
+  "fetchTimeoutSeconds": 30,
+  "fetchRetryCount": 3,
+  "fetchRetryDelayMs": 2000,
+  "consecutiveFailureThreshold": 5,
+  "compressionIntervalDays": 7,
+  "analyticsWindowSize": 10
+}

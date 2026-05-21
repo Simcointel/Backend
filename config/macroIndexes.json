@@ -1,0 +1,39 @@
+{
+  "categories": {
+    "raw-materials": {
+      "name": "Raw Materials",
+      "description": "Basic extracted and farmed resources",
+      "resourceIds": [2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 40, 42, 44, 66, 68, 72, 104, 105, 106, 115, 116, 117, 118, 120, 136, 139, 146, 150]
+    },
+    "industrial-goods": {
+      "name": "Industrial Goods",
+      "description": "Processed intermediate materials and components",
+      "resourceIds": [17, 18, 19, 21, 22, 23, 41, 43, 45, 46, 69, 73, 75, 76, 79, 101, 102, 103, 107, 108, 110, 133, 135, 141]
+    },
+    "consumer-goods": {
+      "name": "Consumer Goods",
+      "description": "Finished products for end consumers",
+      "resourceIds": [7, 8, 60, 61, 62, 63, 64, 65, 67, 70, 71, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 134, 137, 138, 140, 142, 143, 144, 147, 148, 149, 151, 152, 153, 154, 155]
+    },
+    "energy-fuel": {
+      "name": "Energy & Fuel",
+      "description": "Power generation, fuels, and transportation",
+      "resourceIds": [1, 11, 12, 13, 74, 83]
+    },
+    "electronics": {
+      "name": "Electronics & Technology",
+      "description": "Computing, electronic devices, and software",
+      "resourceIds": [20, 24, 25, 26, 27, 28, 35, 47, 80]
+    },
+    "construction": {
+      "name": "Construction",
+      "description": "Building materials and construction equipment",
+      "resourceIds": [74, 109, 111, 112]
+    },
+    "aerospace": {
+      "name": "Aerospace & Vehicles",
+      "description": "Vehicle manufacturing, aerospace, and robotics",
+      "resourceIds": [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 77, 78, 81, 82, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 114]
+    }
+  }
+}

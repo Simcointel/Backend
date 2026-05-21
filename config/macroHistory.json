@@ -1,0 +1,10 @@
+{
+  "enableHistoryIngestion": true,
+  "enableBackfill": true,
+  "backfillLookbackDays": 365,
+  "historySyncIntervalMinutes": 60,
+  "historyRetentionYears": 5,
+  "archiveAfterMonths": 12,
+  "historyPageSize": 50,
+  "syncPageSize": 5
+}
