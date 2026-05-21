@@ -1,5 +1,3 @@
-import express from "express";
-
 import { loadConfig } from "./config/index.js";
 import { setLogLevel } from "./logging/logger.js";
 import { logger } from "./logging/logger.js";
@@ -12,7 +10,7 @@ import { retentionCleanup } from "./jobs/cleanup.js";
 import { runCompression } from "./jobs/compress.js";
 import { getFailureStatus } from "./jobs/failureTracker.js";
 import { executeAction } from "./admin/index.js";
-import { startServer, createServer } from "./api/server.js";
+import { startServer } from "./api/server.js";
 import { envNumber } from "./config/env.js";
 import { runMacroPipeline } from "./jobs/macroPipeline.js";
 import { runAllRealmMetrics } from "./jobs/realmMetrics.js";
@@ -27,22 +25,6 @@ import { runIntelligencePipeline } from "./jobs/intelligencePipeline.js";
 import { runRelationalPipeline } from "./jobs/relationalPipeline.js";
 import { runDashboardPipeline } from "./jobs/dashboardPipeline.js";
 import { runPublicExportPipeline } from "./jobs/publicExportPipeline.js";
-import { initSseEventBus } from "./api/sse.js";
-
-/**
- * ---------------------------------------------------------
- * VERCEL SERVERLESS EXPORT
- * ---------------------------------------------------------
- */
-
-initSseEventBus();
-
-const app = express();
-const api = createServer();
-
-app.use(api);
-
-export default app;
 
 /**
  * ---------------------------------------------------------
@@ -51,11 +33,6 @@ export default app;
  */
 
 async function main() {
-  // Prevent CLI boot during Vercel runtime
-  if (process.env.VERCEL === "1") {
-    return;
-  }
-
   const cfg = loadConfig();
   setLogLevel(cfg.logging.level);
 
