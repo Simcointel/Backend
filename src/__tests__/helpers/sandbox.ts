@@ -18,7 +18,7 @@ export class FilesystemSandbox {
 
   write(relativePath: string, content: string): string {
     const full = resolve(this.root, relativePath);
-    mkdirSync(full.substring(0, full.lastIndexOf("\\")), { recursive: true });
+    mkdirSync(resolve(full, ".."), { recursive: true });
     writeFileSync(full, content, "utf-8");
     return full;
   }

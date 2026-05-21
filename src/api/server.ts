@@ -1,4 +1,5 @@
 import { createServer, IncomingMessage, ServerResponse } from "http";
+import express, { Express } from "express";
 import { logger } from "../logging/logger.js";
 import { Router } from "./router.js";
 import { sendSuccess, sendError, parseJsonBody, requestLogger, enableCors, handleOptions } from "./middleware.js";
@@ -50,7 +51,7 @@ import {
   handleRealtimeHydration,
   handleRealtimeVersion,
 } from "./routes/realtime.js";
-import { handleSseConnection } from "./sse.js";
+import { handleSseConnection, initSseEventBus } from "./sse.js";
 import {
   handlePublicDashboard,
   handlePublicMacro,
@@ -205,10 +206,12 @@ function wrapRateLimited(handler: (req: IncomingMessage, res: ServerResponse, pa
   };
 }
 
-export function startServer(port: number): void {
+export function createApp(): Express {
+  initSseEventBus();
+  const app = express();
   const router = buildRouter();
 
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  app.all("*", async (req, res) => {
     requestLogger(req, res);
     enableCors(res);
 
@@ -240,7 +243,12 @@ export function startServer(port: number): void {
     }
   });
 
-  server.listen(port, () => {
+  return app;
+}
+
+export function startServer(port: number): void {
+  const app = createApp();
+  app.listen(port, () => {
     logger.info(`HTTP server listening on port ${port}`);
     logger.info(`  API base: http://localhost:${port}/api`);
   });
