@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../storage/repoSync.js";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
 import { logger } from "../logging/logger.js";
@@ -42,7 +43,7 @@ export async function runInflationTracking(realm: number): Promise<{ ok: boolean
     return { ok: false, report: null, error: "no categories defined" };
   }
 
-  const indexFiles = findIndexFiles(cfg.dataRepo.path, realm, lookback);
+  const indexFiles = findIndexFiles(getResolvedDataPath(), realm, lookback);
   if (indexFiles.length < 2) {
     return { ok: false, report: null, error: `need at least 2 index snapshots, found ${indexFiles.length}` };
   }
@@ -90,7 +91,7 @@ export async function runInflationTracking(realm: number): Promise<{ ok: boolean
   };
 
   try {
-    const writer = new DataRepoWriter({ path: cfg.dataRepo.path, githubToken: "", owner: "", repo: "", branch: "main" });
+    const writer = new DataRepoWriter({ path: getResolvedDataPath(), githubToken: "", owner: "", repo: "", branch: "main" });
     const timestamp = new Date().toISOString().replace(/:/g, "-");
     const subDir = `aggregates/inflation/realm-${realm}`;
     await writer.writeSnapshot(

@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../storage/repoSync.js";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -30,20 +31,20 @@ export async function executeAction(action: string, params?: Record<string, unkn
 
     case "aggregate": {
       const realm = (params?.realm as number) ?? cfg.simco.realms[0];
-      const result = await runAggregation(cfg.dataRepo.path, realm);
+      const result = await runAggregation(getResolvedDataPath(), realm);
       return { action, ok: result.ok, result };
     }
 
     case "analytics": {
       const realm = (params?.realm as number) ?? cfg.simco.realms[0];
       const windowSize = (params?.windowSize as number) ?? cfg.schedules.analyticsWindowSize;
-      const result = await runExpandedAggregation(cfg.dataRepo.path, realm, windowSize);
+      const result = await runExpandedAggregation(getResolvedDataPath(), realm, windowSize);
       return { action, ok: result.ok, result };
     }
 
     case "cleanup": {
       const dryRun = (params?.dryRun as boolean) ?? false;
-      const result = retentionCleanup(cfg.dataRepo.path, cfg.schedules.snapshotRetentionDays, dryRun);
+      const result = retentionCleanup(getResolvedDataPath(), cfg.schedules.snapshotRetentionDays, dryRun);
       return { action, ok: result.ok, result };
     }
 
@@ -51,7 +52,7 @@ export async function executeAction(action: string, params?: Record<string, unkn
       const realm = (params?.realm as number) ?? cfg.simco.realms[0];
       const retentionDays = (params?.retentionDays as number) ?? 1;
       const dryRun = (params?.dryRun as boolean) ?? false;
-      const result = runCompression(cfg.dataRepo.path, realm, retentionDays, dryRun);
+      const result = runCompression(getResolvedDataPath(), realm, retentionDays, dryRun);
       return { action, ok: result.ok, result };
     }
 

@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../storage/repoSync.js";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
 import { logger } from "../logging/logger.js";
@@ -52,7 +53,7 @@ export async function runPriceIndexes(realm: number): Promise<{ ok: boolean; ind
     return { ok: false, indexes: null, error: "no categories defined" };
   }
 
-  const snapshotPath = findLatestSnapshot(cfg.dataRepo.path, realm);
+  const snapshotPath = findLatestSnapshot(getResolvedDataPath(), realm);
   if (!snapshotPath) {
     return { ok: false, indexes: null, error: "no snapshot found" };
   }
@@ -112,7 +113,7 @@ export async function runPriceIndexes(realm: number): Promise<{ ok: boolean; ind
   };
 
   try {
-    const writer = new DataRepoWriter({ path: cfg.dataRepo.path, githubToken: "", owner: "", repo: "", branch: "main" });
+    const writer = new DataRepoWriter({ path: getResolvedDataPath(), githubToken: "", owner: "", repo: "", branch: "main" });
     const timestamp = new Date().toISOString().replace(/:/g, "-");
     const subDir = `aggregates/indexes/realm-${realm}`;
     await writer.writeSnapshot(

@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../storage/repoSync.js";
 import { loadConfig } from "../config/index.js";
 import { logger } from "../logging/logger.js";
 import { runFetch, runFetchForRealm } from "./fetchJob.js";
@@ -100,12 +101,12 @@ export async function startScheduler(): Promise<void> {
 
     for (const realm of cfg.simco.realms) {
       if (cfg.featureFlags.enableAggregation) {
-        const aggResult = await runAggregation(cfg.dataRepo.path, realm);
+        const aggResult = await runAggregation(getResolvedDataPath(), realm);
         if (!aggResult.ok) logger.warn(`[realm ${realm}] Aggregation skipped`, aggResult.error ?? "");
       }
 
       if (cfg.featureFlags.enableAnalytics) {
-        const analyticResult = await runExpandedAggregation(cfg.dataRepo.path, realm, cfg.schedules.analyticsWindowSize);
+        const analyticResult = await runExpandedAggregation(getResolvedDataPath(), realm, cfg.schedules.analyticsWindowSize);
         if (!analyticResult.ok) logger.warn(`[realm ${realm}] Analytics skipped`, analyticResult.error ?? "");
       }
     }
@@ -116,7 +117,7 @@ export async function startScheduler(): Promise<void> {
     }
 
     if (cfg.featureFlags.enableRetentionCleanup) {
-      const cleanupResult = retentionCleanup(cfg.dataRepo.path, cfg.schedules.snapshotRetentionDays);
+      const cleanupResult = retentionCleanup(getResolvedDataPath(), cfg.schedules.snapshotRetentionDays);
       if (!cleanupResult.ok) logger.warn("Cleanup reported error", cleanupResult.error ?? "");
     }
 
@@ -148,7 +149,7 @@ export async function startScheduler(): Promise<void> {
 
     if (cfg.featureFlags.enableCompression && cycle - lastCompressCycle >= getCompressIntervalCycles(cfg.schedules.compressionIntervalDays, cfg.schedules.fetchIntervalMinutes)) {
       for (const realm of cfg.simco.realms) {
-        const compressResult = runCompression(cfg.dataRepo.path, realm, cfg.schedules.snapshotRetentionDays);
+        const compressResult = runCompression(getResolvedDataPath(), realm, cfg.schedules.snapshotRetentionDays);
         if (!compressResult.ok) logger.warn(`[realm ${realm}] Compression failed`, compressResult.error ?? "");
       }
       lastCompressCycle = cycle;

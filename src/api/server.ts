@@ -89,6 +89,7 @@ import {
   handleSimulationList,
 } from "./routes/forecast.js";
 import { getBaseUrl } from "./urlHelper.js";
+import { ensureDataRepo } from "../storage/repoSync.js";
 
 function buildRouter(): Router {
   const r = new Router();
@@ -222,6 +223,8 @@ export function createApp(): Express {
     const baseUrl = getBaseUrl(req);
 
     try {
+      await ensureDataRepo();
+
       const match = router.match(req.method || "GET", url, baseUrl);
 
       if (!match) {

@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../../storage/repoSync.js";
 import { IncomingMessage, ServerResponse } from "http";
 import { readdirSync, existsSync, statSync } from "fs";
 import { resolve } from "path";
@@ -6,7 +7,7 @@ import { loadConfig } from "../../config/index.js";
 
 export async function handleListArchives(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const cfg = loadConfig();
-  const dataPath = resolve(cfg.dataRepo.path);
+  const dataPath = resolve(getResolvedDataPath());
   const result: Record<string, { count: number; archives: string[] }> = {};
 
   for (const realm of cfg.simco.realms) {
@@ -30,7 +31,7 @@ export async function handleListArchives(req: IncomingMessage, res: ServerRespon
 
 export async function handleListRealmArchives(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
   const cfg = loadConfig();
-  const dataPath = resolve(cfg.dataRepo.path);
+  const dataPath = resolve(getResolvedDataPath());
   const dir = resolve(dataPath, "archives", "market", `realm-${realm}`);
 
   if (!existsSync(dir)) {

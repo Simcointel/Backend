@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../storage/repoSync.js";
 import { loadConfig } from "../config/index.js";
 import { logger } from "../logging/logger.js";
 import { SimcoToolsClient, checkApiHealth } from "../api/simcoTools.js";
@@ -59,7 +60,7 @@ export async function generateHealthReport(): Promise<HealthReport> {
     apiDetail = err instanceof Error ? err.message : String(err);
   }
 
-  const dataRepoPath = resolve(cfg.dataRepo.path);
+  const dataRepoPath = resolve(getResolvedDataPath());
   const dataRepoOk = existsSync(dataRepoPath);
   const dataRepoDetail = dataRepoOk
     ? `Path exists: ${dataRepoPath}`

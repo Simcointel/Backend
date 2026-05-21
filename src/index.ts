@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "./storage/repoSync.js";
 import { loadConfig } from "./config/index.js";
 import { setLogLevel } from "./logging/logger.js";
 import { logger } from "./logging/logger.js";
@@ -76,7 +77,7 @@ async function main() {
 
   if (args.includes("aggregate")) {
     for (const realm of cfg.simco.realms) {
-      const result = await runAggregation(cfg.dataRepo.path, realm);
+      const result = await runAggregation(getResolvedDataPath(), realm);
 
       console.log(
         JSON.stringify(
@@ -96,7 +97,7 @@ async function main() {
   if (args.includes("analytics")) {
     for (const realm of cfg.simco.realms) {
       const result = await runExpandedAggregation(
-        cfg.dataRepo.path,
+        getResolvedDataPath(),
         realm,
         cfg.schedules.analyticsWindowSize,
       );
@@ -121,7 +122,7 @@ async function main() {
 
     for (const realm of cfg.simco.realms) {
       const result = runCompression(
-        cfg.dataRepo.path,
+        getResolvedDataPath(),
         realm,
         cfg.schedules.snapshotRetentionDays,
         dryRun,
@@ -146,7 +147,7 @@ async function main() {
     const dryRun = args.includes("--dry-run");
 
     const result = retentionCleanup(
-      cfg.dataRepo.path,
+      getResolvedDataPath(),
       cfg.schedules.snapshotRetentionDays,
       dryRun,
     );
@@ -302,7 +303,7 @@ async function main() {
 
   logger.info("SimcoIntel Backend");
   logger.info(`realms=[${cfg.simco.realms.join(",")}]`);
-  logger.info(`dataRepo.path=${cfg.dataRepo.path}`);
+  logger.info(`dataRepo.path=${getResolvedDataPath()}`);
 }
 
 main().catch((err) => {

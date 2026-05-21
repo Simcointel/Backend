@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../../storage/repoSync.js";
 import { IncomingMessage, ServerResponse } from "http";
 import { readdirSync, readFileSync, existsSync, statSync } from "fs";
 import { resolve, join } from "path";
@@ -6,7 +7,7 @@ import { loadConfig } from "../../config/index.js";
 
 export async function handleListSnapshots(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const cfg = loadConfig();
-  const dataPath = resolve(cfg.dataRepo.path);
+  const dataPath = resolve(getResolvedDataPath());
   const result: Record<string, { count: number; latest: string | null }> = {};
 
   for (const realm of cfg.simco.realms) {
@@ -30,7 +31,7 @@ export async function handleListSnapshots(req: IncomingMessage, res: ServerRespo
 
 export async function handleListRealmSnapshots(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
   const cfg = loadConfig();
-  const dataPath = resolve(cfg.dataRepo.path);
+  const dataPath = resolve(getResolvedDataPath());
   const dir = resolve(dataPath, "snapshots", "market", `realm-${realm}`);
 
   if (!existsSync(dir)) {
@@ -56,7 +57,7 @@ export async function handleListRealmSnapshots(req: IncomingMessage, res: Server
 
 export async function handleGetSnapshot(req: IncomingMessage, res: ServerResponse, realm: string, file: string): Promise<void> {
   const cfg = loadConfig();
-  const dataPath = resolve(cfg.dataRepo.path);
+  const dataPath = resolve(getResolvedDataPath());
   const filePath = resolve(dataPath, "snapshots", "market", `realm-${realm}`, file);
 
   if (!filePath.startsWith(resolve(dataPath))) {

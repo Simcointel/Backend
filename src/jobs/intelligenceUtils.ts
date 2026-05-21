@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../storage/repoSync.js";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
 import { loadConfig } from "../config/index.js";
@@ -31,7 +32,7 @@ interface HistoryFile {
 }
 
 export function getDataRoot(): string {
-  return resolve(loadConfig().dataRepo.path);
+  return resolve(getResolvedDataPath());
 }
 
 export function loadIndexHistory(realm: number, limit: number): IndexSnapshot[] {

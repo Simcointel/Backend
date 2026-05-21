@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../storage/repoSync.js";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { resolve, join } from "path";
 import { fileURLToPath } from "url";
@@ -51,7 +52,7 @@ export interface MacroArchiveResult {
 }
 
 function getDataRoot(): string {
-  return resolve(loadConfig().dataRepo.path);
+  return resolve(getResolvedDataPath());
 }
 
 function statePath(realm: number): string {

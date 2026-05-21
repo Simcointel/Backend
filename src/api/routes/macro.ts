@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../../storage/repoSync.js";
 import { getBaseUrl } from "../urlHelper.js";
 import { IncomingMessage, ServerResponse } from "http";
 import { readFileSync, readdirSync, existsSync } from "fs";
@@ -10,7 +11,7 @@ type HistoryEntry = { d: string; ac: number; cv: number; tb: number; bs: number;
 type HistoryFile = { r: number; y: number; e: HistoryEntry[] };
 
 function getDataRoot(): string {
-  return resolve(loadConfig().dataRepo.path);
+  return resolve(getResolvedDataPath());
 }
 
 function parseRealmParam(raw: string): number | null {

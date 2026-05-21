@@ -1,3 +1,4 @@
+import { getResolvedDataPath } from "../storage/repoSync.js";
 import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
 import { SimcoToolsClient, type RealmStatus } from "../api/simcoTools.js";
@@ -20,7 +21,7 @@ export async function runRealmMetrics(realm: number): Promise<RealmMetricsResult
     const status = await client.getRealmStatus();
     const elapsed = Date.now() - start;
 
-    const writer = new DataRepoWriter({ path: cfg.dataRepo.path, githubToken: "", owner: "", repo: "", branch: "main" });
+    const writer = new DataRepoWriter({ path: getResolvedDataPath(), githubToken: "", owner: "", repo: "", branch: "main" });
     const timestamp = new Date().toISOString().replace(/:/g, "-");
     const subDir = `aggregates/realm-status/realm-${realm}`;
 
