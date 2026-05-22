@@ -93,6 +93,7 @@ import {
 } from "./routes/forecast.js";
 import { handleCronCycle } from "./routes/cron.js";
 import { startScheduler } from "../jobs/scheduler.js";
+import { reloadConfig } from "../config/index.js";
 import { getBaseUrl } from "./urlHelper.js";
 
 function buildRouter(): Router {
@@ -215,12 +216,12 @@ function wrapRateLimited(handler: (req: IncomingMessage, res: ServerResponse, pa
   };
 }
 
-async function ensureDataRepo(): Promise<void> {
+function ensureDataRepo(): void {
   const token = process.env.GITHUB_TOKEN;
   const owner = process.env.DATA_REPO_OWNER || "SimcoIntel";
   const repo = process.env.DATA_REPO_NAME || "Data";
   const branch = process.env.DATA_REPO_BRANCH || "main";
-  if (!token) { logger.warn("GITHUB_TOKEN not set — cannot clone data repo"); return; }
+  if (!token) { logger.warn("GITHUB_TOKEN not set — cannot use data repo"); return; }
 
   const cloneDir = "/tmp/data-repo";
   if (existsSync(resolve(cloneDir, ".git"))) {
@@ -235,7 +236,6 @@ async function ensureDataRepo(): Promise<void> {
     execSync(`git config user.name "SimcoIntel Bot"`, { cwd: cloneDir, stdio: "pipe" });
   }
   process.env.DATA_REPO_PATH = cloneDir;
-  const { reloadConfig } = await import("../config/index.js");
   reloadConfig();
   logger.info(`Data repo ready at ${cloneDir}`);
 }
@@ -245,10 +245,7 @@ export function createApp(): Express {
   const app = express();
   const router = buildRouter();
 
-  ensureDataRepo().catch((err) => {
-    logger.error("Data repo setup failed", err instanceof Error ? err.message : String(err));
-  });
-
+  ensureDataRepo();
   startScheduler().catch((err) => {
     logger.error("Scheduler failed to start", err instanceof Error ? err.message : String(err));
   });
