@@ -1,4 +1,4 @@
-import { writeFileSync, existsSync, mkdirSync } from "fs";
+import { writeFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import { readdir, readFile } from "fs/promises";
 import { join, resolve, relative } from "path";
 import { logger } from "../logging/logger.js";
@@ -60,6 +60,19 @@ export class DataRepoWriter implements IDataRepoWriter {
     writeFileSync(filePath, content, "utf-8");
 
     logger.info("Snapshot written", filePath);
+
+    try {
+      const files = readdirSync(dir)
+        .filter((f: string) => f.endsWith(".json") && f !== "index.json")
+        .sort()
+        .reverse()
+        .slice(0, 100);
+      const index = { latest: files[0] || "", files };
+      writeFileSync(join(dir, "index.json"), JSON.stringify(index) + "\n", "utf-8");
+    } catch {
+      // non-critical — process.yml regenerates index.json on push
+    }
+
     return filePath;
   }
 
