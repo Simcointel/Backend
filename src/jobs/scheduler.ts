@@ -94,7 +94,10 @@ export async function startScheduler(): Promise<void> {
       try {
         await writer.commitAndPush(`cycle-${cycle}: ${fetchResult.resourceCount} resources, ${fetchResult.vwapCount} VWAPs`);
       } catch (err) {
-        logger.error("Commit/push failed", err instanceof Error ? err.message : String(err));
+        logger.error("Commit/push FAILED", err instanceof Error ? `${err.message} [${err.constructor.name}]` : String(err));
+        if (err instanceof Error && err.stack) {
+          logger.error("Commit/push stack", err.stack.split("\n").slice(0, 6).join(" | "));
+        }
       }
     }
 
