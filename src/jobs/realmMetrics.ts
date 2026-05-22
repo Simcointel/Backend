@@ -14,7 +14,7 @@ export interface RealmMetricsResult {
 export async function runRealmMetrics(realm: number): Promise<RealmMetricsResult> {
   const start = Date.now();
   const cfg = loadConfig();
-  const client = new SimcoToolsClient(realm);
+  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
 
   try {
     const status = await client.getRealmStatus();

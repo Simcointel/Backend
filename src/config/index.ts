@@ -242,7 +242,7 @@ export function loadConfig(): SimcoIntelConfig {
 
   const simco: SimcoConfig = {
     realms: parseRealmList(process.env.SIMCO_REALMS, envString("SIMCO_REALM", "0") === "0" ? [0] : [0, 1]),
-    apiBaseUrl: `https://api.simcotools.com/v1/realms`,
+    apiBaseUrl: envString("SIMCO_API_BASE_URL", "https://api.simcotools.com/v1/realms"),
   };
 
   const dataRepo: DataRepoConfig = {

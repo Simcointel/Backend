@@ -81,8 +81,9 @@ export class SimcoToolsClient {
   private baseUrl: string;
   private lastRequestTime = 0;
 
-  constructor(realm: number = 0) {
-    this.baseUrl = `https://api.simcotools.com/v1/realms/${realm}`;
+  constructor(realm: number = 0, apiBaseUrl?: string) {
+    const base = apiBaseUrl ? apiBaseUrl.replace(/\/+$/, "") : "https://api.simcotools.com/v1/realms";
+    this.baseUrl = `${base}/${realm}`;
   }
 
   private async rateLimit(): Promise<void> {

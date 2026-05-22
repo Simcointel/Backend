@@ -36,7 +36,7 @@ export async function generateHealthReport(): Promise<HealthReport> {
   try {
     const results = await Promise.allSettled(
       cfg.simco.realms.map(async (r) => {
-        const client = new SimcoToolsClient(r);
+        const client = new SimcoToolsClient(r, cfg.simco.apiBaseUrl);
         const result = await checkApiHealth(client);
         return { realm: r, ok: result.ok, detail: result.detail };
       }),

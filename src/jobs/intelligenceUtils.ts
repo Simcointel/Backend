@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, existsSync } from "fs";
-import { resolve, join } from "path";
+import { resolve, join, isAbsolute } from "path";
 import { loadConfig } from "../config/index.js";
 
 export interface IndexSnapshot {
@@ -95,7 +95,8 @@ export function loadRealmHistory(realm: number): HistoryEntry[] {
   const allEntries: HistoryEntry[] = [];
   for (const f of sources) {
     try {
-      const hf = JSON.parse(readFileSync(join(dir, f), "utf-8")) as HistoryFile;
+      const filePath = isAbsolute(f) ? f : join(dir, f);
+      const hf = JSON.parse(readFileSync(filePath, "utf-8")) as HistoryFile;
       allEntries.push(...hf.e);
     } catch {
       try {

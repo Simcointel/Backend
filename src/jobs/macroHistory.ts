@@ -132,7 +132,7 @@ function appendToYearFile(realm: number, year: number, entries: HistoryEntry[]):
 
 export async function runBackfill(realm: number): Promise<HistorySyncResult> {
   const cfg = loadConfig();
-  const client = new SimcoToolsClient(realm);
+  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
   const state = loadState(realm);
 
   const cutoff = new Date();
@@ -239,7 +239,7 @@ export async function runBackfill(realm: number): Promise<HistorySyncResult> {
 
 export async function runHistorySync(realm: number): Promise<HistorySyncResult> {
   const cfg = loadConfig();
-  const client = new SimcoToolsClient(realm);
+  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
   const state = loadState(realm);
 
   if (!state.backfillComplete) {

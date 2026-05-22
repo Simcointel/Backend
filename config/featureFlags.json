@@ -1,7 +1,7 @@
 {
   "enableMarketFetch": true,
   "enableSnapshotWrite": true,
-  "enableCommitPush": false,
+  "enableCommitPush": true,
   "enableAggregation": true,
   "enableAnalytics": true,
   "enableRetentionCleanup": true,
