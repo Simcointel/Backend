@@ -55,7 +55,12 @@ export class DataRepoWriter implements IDataRepoWriter {
   async commitAndPush(message: string): Promise<void> {
     const { owner, repo, branch, githubToken, path: repoPath } = this.config;
     if (!githubToken) {
-      logger.warn("GITHUB_TOKEN not set -- skipping push");
+      logger.error("GITHUB_TOKEN not set -- cannot push to data repo. Set GITHUB_TOKEN env var.");
+      return;
+    }
+
+    if (!owner || !repo) {
+      logger.error(`Invalid data repo config: owner="${owner}" repo="${repo}". Set DATA_REPO_OWNER and DATA_REPO_NAME env vars.`);
       return;
     }
 
@@ -68,11 +73,12 @@ export class DataRepoWriter implements IDataRepoWriter {
 
     const repoRoot = resolve(repoPath);
     if (!existsSync(repoRoot)) {
-      logger.warn("Data repo directory missing, nothing to push");
+      logger.error(`Data repo directory missing at ${repoRoot} -- nothing to push`);
       return;
     }
 
     // 1. Get current commit SHA for the branch
+    logger.info(`Pushing to ${owner}/${repo} on branch ${branch}...`);
     const refRes = await fetch(`${api}/git/refs/heads/${branch}`, { headers });
     if (!refRes.ok) {
       throw new StorageError(`Failed to get branch ref: ${refRes.status} ${await refRes.text()}`);
@@ -115,6 +121,8 @@ export class DataRepoWriter implements IDataRepoWriter {
     }
 
     await walkDir(repoRoot);
+
+    logger.info(`Found ${entries.length} file(s) to push in ${repoRoot}`);
 
     if (entries.length === 0) {
       logger.info("No files to push");

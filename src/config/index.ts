@@ -248,8 +248,8 @@ export function loadConfig(): SimcoIntelConfig {
   const dataRepo: DataRepoConfig = {
     path: envString("DATA_REPO_PATH", "../Data"),
     githubToken: envString("GITHUB_TOKEN", ""),
-    owner: envString("DATA_REPO_OWNER", ""),
-    repo: envString("DATA_REPO_NAME", "SimcoIntel"),
+    owner: envString("DATA_REPO_OWNER", "SimcoIntel"),
+    repo: envString("DATA_REPO_NAME", "Data"),
     branch: envString("DATA_REPO_BRANCH", "main"),
   };
 
