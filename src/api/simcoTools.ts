@@ -164,6 +164,17 @@ export class SimcoToolsClient {
   async getCompany(userId: number): Promise<CompanyData> {
     return this.fetchJson<CompanyData>(`/companies/${userId}`);
   }
+
+  async getMarketCandlesticks(resourceId: number, quality: number, startDate?: string, endDate?: string): Promise<any[]> {
+    const params: Record<string, string> = {};
+    if (startDate) params.start = startDate;
+    if (endDate) params.end = endDate;
+    const data = await this.fetchJson<unknown>(`/market/resources/${resourceId}/${quality}/candlesticks`, params);
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object" && "candlesticks" in data) return (data as { candlesticks: any[] }).candlesticks;
+    if (data && typeof data === "object" && "results" in data) return (data as { results: any[] }).results;
+    throw new ApiError(`Unexpected candlesticks response shape for resource ${resourceId} quality ${quality}`);
+  }
 }
 
 export async function checkApiHealth(client: SimcoToolsClient): Promise<{ ok: boolean; detail: string }> {
