@@ -104,6 +104,22 @@ export async function runPriceIndexes(realm: number): Promise<{ ok: boolean; ind
     return { ok: false, indexes: null, error: "no resources matched" };
   }
 
+  try {
+    const statusDir = resolve(cfg.dataRepo.path, "aggregates", "realm-status", `realm-${realm}`);
+    if (existsSync(statusDir)) {
+      const statusFiles = readdirSync(statusDir)
+        .filter((f) => f.startsWith("realm-status-") && f.endsWith(".json"))
+        .sort()
+        .reverse();
+      if (statusFiles.length > 0) {
+        const status = JSON.parse(readFileSync(join(statusDir, statusFiles[0]), "utf-8")) as { cv: number };
+        indexes["gdp"] = { v: status.cv, n: 1, rn: 1 };
+      }
+    }
+  } catch {
+    logger.warn(`[realm ${realm}] Could not read CV for GDP override`);
+  }
+
   const report: IndexReport = {
     t: new Date().toISOString(),
     r: realm,
