@@ -1,4 +1,7 @@
 import { createServer, IncomingMessage, ServerResponse } from "http";
+import { existsSync, mkdirSync } from "fs";
+import { resolve } from "path";
+import { execSync } from "child_process";
 import express, { Express } from "express";
 import { logger } from "../logging/logger.js";
 import { Router } from "./router.js";
@@ -212,10 +215,39 @@ function wrapRateLimited(handler: (req: IncomingMessage, res: ServerResponse, pa
   };
 }
 
+async function ensureDataRepo(): Promise<void> {
+  const token = process.env.GITHUB_TOKEN;
+  const owner = process.env.DATA_REPO_OWNER || "SimcoIntel";
+  const repo = process.env.DATA_REPO_NAME || "Data";
+  const branch = process.env.DATA_REPO_BRANCH || "main";
+  if (!token) { logger.warn("GITHUB_TOKEN not set — cannot clone data repo"); return; }
+
+  const cloneDir = "/tmp/data-repo";
+  if (existsSync(resolve(cloneDir, ".git"))) {
+    logger.info("Data repo already cloned, pulling latest");
+    execSync(`git pull origin ${branch}`, { cwd: cloneDir, stdio: "pipe" });
+  } else {
+    if (!existsSync(cloneDir)) mkdirSync(cloneDir, { recursive: true });
+    const url = `https://${token}@github.com/${owner}/${repo}.git`;
+    logger.info(`Cloning ${owner}/${repo} to ${cloneDir}`);
+    execSync(`git clone --depth 1 --branch ${branch} ${url} ${cloneDir}`, { stdio: "pipe" });
+    execSync(`git config user.email "simcointel-bot@users.noreply.github.com"`, { cwd: cloneDir, stdio: "pipe" });
+    execSync(`git config user.name "SimcoIntel Bot"`, { cwd: cloneDir, stdio: "pipe" });
+  }
+  process.env.DATA_REPO_PATH = cloneDir;
+  const { reloadConfig } = await import("../config/index.js");
+  reloadConfig();
+  logger.info(`Data repo ready at ${cloneDir}`);
+}
+
 export function createApp(): Express {
   initSseEventBus();
   const app = express();
   const router = buildRouter();
+
+  ensureDataRepo().catch((err) => {
+    logger.error("Data repo setup failed", err instanceof Error ? err.message : String(err));
+  });
 
   startScheduler().catch((err) => {
     logger.error("Scheduler failed to start", err instanceof Error ? err.message : String(err));
