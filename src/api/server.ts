@@ -1,7 +1,10 @@
+import { setDefaultResultOrder } from "dns";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { existsSync, mkdirSync } from "fs";
 import express, { Express } from "express";
 import { logger } from "../logging/logger.js";
+
+try { setDefaultResultOrder("ipv4first"); logger.info("DNS: IPv4-first resolution enabled"); } catch { /* pre-18.13 Node */ }
 import { Router } from "./router.js";
 import { sendSuccess, sendError, parseJsonBody, requestLogger, enableCors, handleOptions } from "./middleware.js";
 import { rateLimitMiddleware } from "./rateLimiter.js";
@@ -68,6 +71,7 @@ import {
   handlePublicExport,
   handlePublicExportList,
 } from "./routes/publicExport.js";
+import { handleSync } from "./routes/sync.js";
 import {
   handleWidgetHealth,
   handleWidgetRegime,
@@ -188,6 +192,9 @@ function buildRouter(): Router {
 
   // Cron (Vercel Cron Jobs)
   r.post("/api/cron/cycle", handleCronCycle);
+
+  // Sync (for Data repo GitHub Action to pull)
+  r.get("/api/public/sync", wrapRateLimited(handleSync));
 
   return r;
 }

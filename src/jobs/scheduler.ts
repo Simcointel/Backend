@@ -7,7 +7,6 @@ import { retentionCleanup } from "./cleanup.js";
 import { runCompression } from "./compress.js";
 import { recordFetchResult, getFailureStatus } from "./failureTracker.js";
 import { sendFailureAlert } from "./alerter.js";
-import { DataRepoWriter } from "../storage/dataRepoWriter.js";
 import { runMacroPipeline } from "./macroPipeline.js";
 import { runIntelligencePipeline } from "./intelligencePipeline.js";
 import { runRelationalPipeline } from "./relationalPipeline.js";
@@ -89,16 +88,8 @@ export async function startScheduler(): Promise<void> {
       }
     }
 
-    if (fetchResult.ok && cfg.featureFlags.enableCommitPush) {
-      const writer = new DataRepoWriter(cfg.dataRepo);
-      try {
-        await writer.commitAndPush(`cycle-${cycle}: ${fetchResult.resourceCount} resources, ${fetchResult.vwapCount} VWAPs`);
-      } catch (err) {
-        logger.error("Commit/push FAILED", err instanceof Error ? `${err.message} [${err.constructor.name}]` : String(err));
-        if (err instanceof Error && err.stack) {
-          logger.error("Commit/push stack", err.stack.split("\n").slice(0, 6).join(" | "));
-        }
-      }
+    if (cfg.featureFlags.enableCommitPush && process.env.SYNC_SECRET) {
+      logger.info("Sync: data pushed to Data repo via external GitHub Action pull");
     }
 
     for (const realm of cfg.simco.realms) {

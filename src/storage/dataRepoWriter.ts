@@ -23,23 +23,15 @@ export interface IDataRepoWriter {
   commitAndPush(message: string): Promise<void>;
 }
 
-async function githubFetch(url: string, options: RequestInit, retries = 3): Promise<Response> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      const res = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeout);
-      return res;
-    } catch (err) {
-      clearTimeout((options.signal as any)?.timeout);
-      if (i === retries - 1) throw err;
-      const delay = 1000 * (i + 1);
-      logger.warn(`GitHub API retry ${i + 1}/${retries} after ${delay}ms: ${url}`);
-      await new Promise((r) => setTimeout(r, delay));
-    }
+async function githubFetch(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
   }
-  throw new Error("Unreachable");
 }
 
 export class DataRepoWriter implements IDataRepoWriter {
@@ -89,6 +81,17 @@ export class DataRepoWriter implements IDataRepoWriter {
       return;
     }
 
+    // Quick connectivity check — bail fast if GitHub API is unreachable
+    try {
+      const probe = new AbortController();
+      const probeTimer = setTimeout(() => probe.abort(), 5000);
+      await fetch("https://api.github.com", { method: "HEAD", signal: probe.signal });
+      clearTimeout(probeTimer);
+    } catch {
+      logger.warn("GitHub API unreachable — skipping push (fetch.yml will sync data instead)");
+      return;
+    }
+
     const api = `https://api.github.com/repos/${owner}/${repo}`;
     const headers: Record<string, string> = {
       Authorization: `Bearer ${githubToken}`,
@@ -120,7 +123,6 @@ export class DataRepoWriter implements IDataRepoWriter {
       return;
     }
 
-    // Try Git Data API first (single commit)
     try {
       await this.pushViaGitApi(api, headers, branch, message, files);
       logger.info(`Pushed ${files.length} file(s) to ${owner}/${repo}`);
@@ -130,7 +132,6 @@ export class DataRepoWriter implements IDataRepoWriter {
       logger.warn(`Git Data API push failed, falling back to Contents API: ${msg}`);
     }
 
-    // Fallback: Contents API (one commit per file)
     try {
       await this.pushViaContentsApi(api, headers, branch, message, files);
       logger.info(`Pushed ${files.length} file(s) to ${owner}/${repo} via Contents API`);
@@ -160,23 +161,16 @@ export class DataRepoWriter implements IDataRepoWriter {
     message: string,
     files: Array<{ path: string; content: string }>,
   ): Promise<void> {
-    // 1. Get current commit SHA
     const refRes = await githubFetch(`${api}/git/refs/heads/${branch}`, { headers });
-    if (!refRes.ok) {
-      throw new StorageError(`Ref fetch: ${refRes.status} ${await refRes.text()}`);
-    }
+    if (!refRes.ok) throw new StorageError(`Ref fetch: ${refRes.status} ${await refRes.text()}`);
     const ref = (await refRes.json()) as { object: { sha: string } };
     const currentCommitSha = ref.object.sha;
 
-    // 2. Get current tree
     const commitRes = await githubFetch(`${api}/git/commits/${currentCommitSha}`, { headers });
-    if (!commitRes.ok) {
-      throw new StorageError(`Commit fetch: ${commitRes.status} ${await commitRes.text()}`);
-    }
+    if (!commitRes.ok) throw new StorageError(`Commit fetch: ${commitRes.status} ${await commitRes.text()}`);
     const commit = (await commitRes.json()) as { tree: { sha: string } };
     const baseTreeSha = commit.tree.sha;
 
-    // 3. Create blobs
     const entries: Array<{ path: string; mode: "100644"; type: "blob"; sha: string }> = [];
     for (const file of files) {
       const blobRes = await githubFetch(`${api}/git/blobs`, {
@@ -184,44 +178,33 @@ export class DataRepoWriter implements IDataRepoWriter {
         headers,
         body: JSON.stringify({ content: file.content, encoding: "utf-8" }),
       });
-      if (!blobRes.ok) {
-        throw new StorageError(`Blob ${file.path}: ${blobRes.status} ${await blobRes.text()}`);
-      }
+      if (!blobRes.ok) throw new StorageError(`Blob ${file.path}: ${blobRes.status} ${await blobRes.text()}`);
       const blob = (await blobRes.json()) as { sha: string };
       entries.push({ path: file.path, mode: "100644", type: "blob", sha: blob.sha });
     }
 
-    // 4. Create tree
     const treeRes = await githubFetch(`${api}/git/trees`, {
       method: "POST",
       headers,
       body: JSON.stringify({ base_tree: baseTreeSha, tree: entries }),
     });
-    if (!treeRes.ok) {
-      throw new StorageError(`Tree create: ${treeRes.status} ${await treeRes.text()}`);
-    }
+    if (!treeRes.ok) throw new StorageError(`Tree create: ${treeRes.status} ${await treeRes.text()}`);
     const tree = (await treeRes.json()) as { sha: string };
 
-    // 5. Create commit
     const commitRes2 = await githubFetch(`${api}/git/commits`, {
       method: "POST",
       headers,
       body: JSON.stringify({ message, tree: tree.sha, parents: [currentCommitSha] }),
     });
-    if (!commitRes2.ok) {
-      throw new StorageError(`Commit create: ${commitRes2.status} ${await commitRes2.text()}`);
-    }
+    if (!commitRes2.ok) throw new StorageError(`Commit create: ${commitRes2.status} ${await commitRes2.text()}`);
     const newCommit = (await commitRes2.json()) as { sha: string };
 
-    // 6. Update ref
     const refRes2 = await githubFetch(`${api}/git/refs/heads/${branch}`, {
       method: "PATCH",
       headers,
       body: JSON.stringify({ sha: newCommit.sha, force: false }),
     });
-    if (!refRes2.ok) {
-      throw new StorageError(`Ref update: ${refRes2.status} ${await refRes2.text()}`);
-    }
+    if (!refRes2.ok) throw new StorageError(`Ref update: ${refRes2.status} ${await refRes2.text()}`);
   }
 
   private async pushViaContentsApi(
