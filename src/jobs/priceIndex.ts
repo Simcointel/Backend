@@ -104,6 +104,17 @@ export async function runPriceIndexes(realm: number): Promise<{ ok: boolean; ind
     return { ok: false, indexes: null, error: "no resources matched" };
   }
 
+  const ixVals = Object.entries(indexes).filter(([k, v]) => k !== "gdp" && v.v > 0).map(([_, v]) => v);
+  if (ixVals.length > 0) {
+    const cpiAvg = ixVals.reduce((s, v) => s + v.v, 0) / ixVals.length;
+    indexes["cpi"] = { v: Math.round(cpiAvg * 10000) / 10000, n: ixVals.length, rn: ixVals.length };
+    const coreVals = Object.entries(indexes).filter(([k, v]) => k !== "gdp" && k !== "energy-fuel" && v.v > 0).map(([_, v]) => v);
+    if (coreVals.length > 0) {
+      const coreAvg = coreVals.reduce((s, v) => s + v.v, 0) / coreVals.length;
+      indexes["core-cpi"] = { v: Math.round(coreAvg * 10000) / 10000, n: coreVals.length, rn: coreVals.length };
+    }
+  }
+
   try {
     const statusDir = resolve(cfg.dataRepo.path, "aggregates", "realm-status", `realm-${realm}`);
     if (existsSync(statusDir)) {

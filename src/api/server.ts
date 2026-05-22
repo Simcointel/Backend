@@ -93,7 +93,7 @@ import {
   handleDependenciesGet,
   handleSimulationList,
 } from "./routes/forecast.js";
-import { handleCronCycle } from "./routes/cron.js";
+import { handleCronCycle, handleTriggerFetch } from "./routes/cron.js";
 import { startScheduler } from "../jobs/scheduler.js";
 import { reloadConfig } from "../config/index.js";
 import { getBaseUrl } from "./urlHelper.js";
@@ -192,6 +192,7 @@ function buildRouter(): Router {
 
   // Cron (Vercel Cron Jobs)
   r.post("/api/cron/cycle", handleCronCycle);
+  r.post("/api/cron/trigger-fetch", handleTriggerFetch);
 
   // Sync (for Data repo GitHub Action to pull)
   r.get("/api/public/sync", wrapRateLimited(handleSync));

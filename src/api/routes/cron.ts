@@ -16,14 +16,69 @@ import { DataRepoWriter } from "../../storage/dataRepoWriter.js";
 import { recordFetchResult } from "../../jobs/failureTracker.js";
 import { updatePipelineRun } from "../../jobs/operationalStatus.js";
 
-export async function handleCronCycle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const auth = req.headers.authorization;
-  const cfg = loadConfig();
+function checkSecret(req: IncomingMessage): boolean {
   const expected = process.env.CRON_SECRET;
-  if (expected && auth !== `Bearer ${expected}`) {
+  return !expected || req.headers.authorization === `Bearer ${expected}`;
+}
+
+async function githubFetch(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function handleTriggerFetch(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!checkSecret(req)) {
     sendError(res, 401, "Unauthorized");
     return;
   }
+
+  const cfg = loadConfig();
+  const token = cfg.dataRepo.githubToken;
+  if (!token) {
+    sendError(res, 400, "GITHUB_TOKEN not configured");
+    return;
+  }
+
+  const api = `https://api.github.com/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}/dispatches`;
+  try {
+    const ghRes = await githubFetch(api, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "SimcoIntel-Backend",
+        Accept: "application/vnd.github.everest-preview+json",
+      },
+      body: JSON.stringify({ event_type: "sync-trigger" }),
+    });
+
+    if (!ghRes.ok) {
+      const text = await ghRes.text();
+      logger.warn(`GitHub dispatch failed: ${ghRes.status} ${text}`);
+      sendError(res, 502, `GitHub dispatch failed: ${ghRes.status}`);
+      return;
+    }
+
+    logger.info("GitHub dispatch triggered: sync-trigger → Data repo");
+    sendSuccess(res, { ok: true, event: "sync-trigger" });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn(`GitHub dispatch error: ${msg}`);
+    sendError(res, 502, `GitHub dispatch error: ${msg}`);
+  }
+}
+
+export async function handleCronCycle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!checkSecret(req)) {
+    sendError(res, 401, "Unauthorized");
+    return;
+  }
+  const cfg = loadConfig();
 
   const results: Record<string, unknown> = {};
   const errors: string[] = [];

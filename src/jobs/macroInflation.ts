@@ -78,6 +78,23 @@ export async function runInflationTracking(realm: number): Promise<{ ok: boolean
     };
   }
 
+  const cpiCur = latest.ix?.["cpi"];
+  const cpiPrev = oldest.ix?.["cpi"];
+  if (cpiCur && cpiPrev && cpiPrev.v > 0) {
+    inflation["cpi"] = {
+      cv: cpiCur.v, pv: cpiPrev.v,
+      ch: Math.round(((cpiCur.v - cpiPrev.v) / cpiPrev.v) * 10000) / 100,
+    };
+  }
+  const coreCur = latest.ix?.["core-cpi"];
+  const corePrev = oldest.ix?.["core-cpi"];
+  if (coreCur && corePrev && corePrev.v > 0) {
+    inflation["core-cpi"] = {
+      cv: coreCur.v, pv: corePrev.v,
+      ch: Math.round(((coreCur.v - corePrev.v) / corePrev.v) * 10000) / 100,
+    };
+  }
+
   if (Object.keys(inflation).length === 0) {
     return { ok: false, report: null, error: "no inflation data computed" };
   }
