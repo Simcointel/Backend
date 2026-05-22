@@ -1,0 +1,16 @@
+name: Cron Cycle
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger pipeline cycle
+        run: |
+          curl -fsS -X POST "${{ secrets.CRON_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -o /dev/null

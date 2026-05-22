@@ -89,6 +89,7 @@ import {
   handleSimulationList,
 } from "./routes/forecast.js";
 import { handleCronCycle } from "./routes/cron.js";
+import { startScheduler } from "../jobs/scheduler.js";
 import { getBaseUrl } from "./urlHelper.js";
 
 function buildRouter(): Router {
@@ -215,6 +216,10 @@ export function createApp(): Express {
   initSseEventBus();
   const app = express();
   const router = buildRouter();
+
+  startScheduler().catch((err) => {
+    logger.error("Scheduler failed to start", err instanceof Error ? err.message : String(err));
+  });
 
   app.use(async (req, res) => {
     requestLogger(req, res);

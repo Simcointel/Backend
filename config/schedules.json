@@ -1,5 +1,5 @@
 {
-  "fetchIntervalMinutes": 15,
+  "fetchIntervalMinutes": 5,
   "snapshotRetentionDays": 90,
   "fetchTimeoutSeconds": 30,
   "fetchRetryCount": 3,
