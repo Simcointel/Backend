@@ -1,7 +1,5 @@
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { existsSync, mkdirSync } from "fs";
-import { resolve } from "path";
-import { execSync } from "child_process";
 import express, { Express } from "express";
 import { logger } from "../logging/logger.js";
 import { Router } from "./router.js";
@@ -216,28 +214,17 @@ function wrapRateLimited(handler: (req: IncomingMessage, res: ServerResponse, pa
   };
 }
 
-function ensureDataRepo(): void {
-  const token = process.env.GITHUB_TOKEN;
-  const owner = process.env.DATA_REPO_OWNER || "SimcoIntel";
-  const repo = process.env.DATA_REPO_NAME || "Data";
-  const branch = process.env.DATA_REPO_BRANCH || "main";
-  if (!token) { logger.warn("GITHUB_TOKEN not set — cannot use data repo"); return; }
-
-  const cloneDir = "/tmp/data-repo";
-  if (existsSync(resolve(cloneDir, ".git"))) {
-    logger.info("Data repo already cloned, pulling latest");
-    execSync(`git pull origin ${branch}`, { cwd: cloneDir, stdio: "pipe" });
-  } else {
-    if (!existsSync(cloneDir)) mkdirSync(cloneDir, { recursive: true });
-    const url = `https://${token}@github.com/${owner}/${repo}.git`;
-    logger.info(`Cloning ${owner}/${repo} to ${cloneDir}`);
-    execSync(`git clone --depth 1 --branch ${branch} ${url} ${cloneDir}`, { stdio: "pipe" });
-    execSync(`git config user.email "simcointel-bot@users.noreply.github.com"`, { cwd: cloneDir, stdio: "pipe" });
-    execSync(`git config user.name "SimcoIntel Bot"`, { cwd: cloneDir, stdio: "pipe" });
+function ensureDataDir(): void {
+  let dir = process.env.DATA_REPO_PATH;
+  if (!dir || dir.includes("://")) {
+    dir = "/tmp/data-repo";
   }
-  process.env.DATA_REPO_PATH = cloneDir;
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  process.env.DATA_REPO_PATH = dir;
   reloadConfig();
-  logger.info(`Data repo ready at ${cloneDir}`);
+  logger.info(`Data directory ready at ${dir}`);
 }
 
 export function createApp(): Express {
@@ -245,7 +232,7 @@ export function createApp(): Express {
   const app = express();
   const router = buildRouter();
 
-  ensureDataRepo();
+  ensureDataDir();
   startScheduler().catch((err) => {
     logger.error("Scheduler failed to start", err instanceof Error ? err.message : String(err));
   });
