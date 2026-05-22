@@ -88,6 +88,7 @@ import {
   handleDependenciesGet,
   handleSimulationList,
 } from "./routes/forecast.js";
+import { handleCronCycle } from "./routes/cron.js";
 import { getBaseUrl } from "./urlHelper.js";
 
 function buildRouter(): Router {
@@ -181,6 +182,9 @@ function buildRouter(): Router {
   r.get("/api/public/signals", wrapForecastRoute(handleSignalsGet, 60));
   r.get("/api/public/cycles", wrapForecastRoute(handleCyclesGet, 60));
   r.get("/api/public/dependencies", wrapForecastRoute(handleDependenciesGet, 60));
+
+  // Cron (Vercel Cron Jobs)
+  r.post("/api/cron/cycle", handleCronCycle);
 
   return r;
 }
