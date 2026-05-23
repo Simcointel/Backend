@@ -95,6 +95,15 @@ export async function runInflationTracking(realm: number): Promise<{ ok: boolean
     };
   }
 
+  const gdpCur = latest.ix?.["gdp"];
+  const gdpPrev = oldest.ix?.["gdp"];
+  if (gdpCur && gdpPrev && gdpPrev.v > 0) {
+    inflation["gdp"] = {
+      cv: gdpCur.v, pv: gdpPrev.v,
+      ch: Math.round(((gdpCur.v - gdpPrev.v) / gdpPrev.v) * 10000) / 100,
+    };
+  }
+
   if (Object.keys(inflation).length === 0) {
     return { ok: false, report: null, error: "no inflation data computed" };
   }

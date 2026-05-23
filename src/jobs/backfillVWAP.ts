@@ -138,6 +138,8 @@ export async function runBackfillVWAP(realm: number): Promise<BackfillResult> {
 
   let lastCpi: number | null = null;
   let lastCoreCpi: number | null = null;
+  let lastGdp: number | null = null;
+  const lastCategoryVals: Record<string, number> = {};
   const indexDir = join(cfg.dataRepo.path, `aggregates/indexes/realm-${realm}`);
 
   let realmCv: number | null = null;
@@ -168,6 +170,10 @@ export async function runBackfillVWAP(realm: number): Promise<BackfillResult> {
           const prev = JSON.parse(readFileSync(prevIndexFile, "utf-8"));
           if (prev?.ix?.cpi?.v != null) lastCpi = prev.ix.cpi.v;
           if (prev?.ix?.["core-cpi"]?.v != null) lastCoreCpi = prev.ix["core-cpi"].v;
+          if (prev?.ix?.gdp?.v != null) lastGdp = prev.ix.gdp.v;
+          for (const catKey of Object.keys(categories)) {
+            if (prev?.ix?.[catKey]?.v != null) lastCategoryVals[catKey] = prev.ix[catKey].v;
+          }
         } catch {}
       }
       continue;
@@ -253,7 +259,9 @@ export async function runBackfillVWAP(realm: number): Promise<BackfillResult> {
       for (const [key] of Object.entries(categories)) {
         const cur = indexes[key];
         if (!cur) continue;
-        inflation[key] = { cv: cur.v, pv: cur.v, ch: 0 };
+        const prev = lastCategoryVals[key] ?? cur.v;
+        const ch = prev > 0 ? Math.round(((cur.v - prev) / prev) * 10000) / 100 : 0;
+        inflation[key] = { cv: cur.v, pv: prev, ch };
       }
 
       inflation["cpi"] = { cv: cpiValue, pv: lastCpi, ch };
@@ -261,6 +269,11 @@ export async function runBackfillVWAP(realm: number): Promise<BackfillResult> {
       if (coreCur != null && lastCoreCpi != null && lastCoreCpi > 0) {
         const coreCh = Math.round(((coreCur - lastCoreCpi) / lastCoreCpi) * 10000) / 100;
         inflation["core-cpi"] = { cv: coreCur, pv: lastCoreCpi, ch: coreCh };
+      }
+      const gdpCur = indexes["gdp"]?.v ?? null;
+      if (gdpCur != null && lastGdp != null && lastGdp > 0) {
+        const gdpCh = Math.round(((gdpCur - lastGdp) / lastGdp) * 10000) / 100;
+        inflation["gdp"] = { cv: gdpCur, pv: lastGdp, ch: gdpCh };
       }
 
       const infReport = { t: dateStr, r: realm, lb: 1, in: inflation };
@@ -279,6 +292,10 @@ export async function runBackfillVWAP(realm: number): Promise<BackfillResult> {
 
     if (cpiValue != null) lastCpi = cpiValue;
     if (indexes["core-cpi"]?.v != null) lastCoreCpi = indexes["core-cpi"].v;
+    if (indexes["gdp"]?.v != null) lastGdp = indexes["gdp"].v;
+    for (const catKey of Object.keys(categories)) {
+      if (indexes[catKey]?.v != null) lastCategoryVals[catKey] = indexes[catKey].v;
+    }
 
     processed++;
     if (processed % 10 === 0) {
