@@ -93,6 +93,7 @@ export function loadConfig(): SimcoIntelConfig {
     enableRealmMetrics: true,
     enablePriceIndexes: true,
     enableInflationTracking: true,
+    enableProfitMargins: true,
     enableSummaryIngestion: true,
     inflationLookbackDays: 30,
     indexBaseDate: "2024-01-01",

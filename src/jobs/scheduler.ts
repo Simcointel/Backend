@@ -16,6 +16,7 @@ import { emit } from "../events/eventBus.js";
 import { runPublicExportPipeline } from "./publicExportPipeline.js";
 import { runAllBackfillVWAP } from "./backfillVWAP.js";
 import { runAllVWAPInflation, runAllLatestVWAPInflation } from "./vwapInflation.js";
+import { runAllProfitMargins } from "./profitMargins.js";
 
 let shuttingDown = false;
 let schedulerRunning = false;
@@ -58,7 +59,7 @@ export async function startScheduler(): Promise<void> {
   logger.info(`  retention:      ${cfg.schedules.snapshotRetentionDays} days`);
   logger.info(`  compress:       every ${cfg.schedules.compressionIntervalDays} days`);
   logger.info(`  analytics:      window=${cfg.schedules.analyticsWindowSize}`);
-  logger.info(`  macro:          realmMetrics=${cfg.macroSettings.enableRealmMetrics}, priceIndexes=${cfg.macroSettings.enablePriceIndexes}, inflation=${cfg.macroSettings.enableInflationTracking}`);
+  logger.info(`  macro:          realmMetrics=${cfg.macroSettings.enableRealmMetrics}, priceIndexes=${cfg.macroSettings.enablePriceIndexes}, inflation=${cfg.macroSettings.enableInflationTracking}, profitMargins=${cfg.macroSettings.enableProfitMargins}`);
   logger.info(`  macro-history:  ${cfg.macroHistory.enableHistoryIngestion ? "enabled" : "disabled"}, backfill=${cfg.macroHistory.enableBackfill}, lookback=${cfg.macroHistory.backfillLookbackDays}d`);
   logger.info(`  commit-push:    ${cfg.featureFlags.enableCommitPush}`);
   logger.info(`  alerting:       ${cfg.featureFlags.enableAlerting}`);
@@ -140,6 +141,13 @@ export async function startScheduler(): Promise<void> {
     const vwapInfResult = await runAllLatestVWAPInflation();
     if (!vwapInfResult.ok) {
       logger.warn("VWAP inflation incremental had failures");
+    }
+
+    if (cfg.macroSettings.enableProfitMargins) {
+      const profitResult = await runAllProfitMargins();
+      if (!profitResult.ok) {
+        logger.warn("Profit margins pipeline had failures");
+      }
     }
 
     if (cfg.featureFlags.enableRetentionCleanup) {

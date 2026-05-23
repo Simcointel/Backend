@@ -75,6 +75,7 @@ export interface MacroSettings {
   enableRealmMetrics: boolean;
   enablePriceIndexes: boolean;
   enableInflationTracking: boolean;
+  enableProfitMargins: boolean;
   enableSummaryIngestion: boolean;
   inflationLookbackDays: number;
   indexBaseDate: string;
