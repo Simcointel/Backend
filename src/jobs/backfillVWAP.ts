@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, existsSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
 import { SimcoToolsClient } from "../api/simcoTools.js";
@@ -140,6 +140,23 @@ export async function runBackfillVWAP(realm: number): Promise<BackfillResult> {
   let lastCoreCpi: number | null = null;
   const indexDir = join(cfg.dataRepo.path, `aggregates/indexes/realm-${realm}`);
 
+  let realmCv: number | null = null;
+  try {
+    const statusDir = resolve(cfg.dataRepo.path, "aggregates", "realm-status", `realm-${realm}`);
+    if (existsSync(statusDir)) {
+      const statusFiles = readdirSync(statusDir)
+        .filter((f) => f.startsWith("realm-status-") && f.endsWith(".json"))
+        .sort()
+        .reverse();
+      if (statusFiles.length > 0) {
+        const status = JSON.parse(readFileSync(join(statusDir, statusFiles[0]), "utf-8")) as { cv: number };
+        realmCv = status.cv;
+      }
+    }
+  } catch {
+    logger.warn(`[backfill-vwap realm ${realm}] Could not read CV for GDP`);
+  }
+
   const sortedDates = datesWithData.sort();
 
   for (const dateStr of sortedDates) {
@@ -209,6 +226,10 @@ export async function runBackfillVWAP(realm: number): Promise<BackfillResult> {
         const coreAvg = coreVals.reduce((s, v) => s + v.v, 0) / coreVals.length;
         indexes["core-cpi"] = { v: Math.round(coreAvg * 10000) / 10000, n: coreVals.length, rn: coreVals.length };
       }
+    }
+
+    if (realmCv != null) {
+      indexes["gdp"] = { v: realmCv, n: 1, rn: 1 };
     }
 
     const indexReport = { t: dateStr, r: realm, sr: "", ix: indexes };
