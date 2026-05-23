@@ -97,7 +97,7 @@ export class SimcoToolsClient {
     this.lastRequestTime = Date.now();
   }
 
-  private async fetchJson<T>(path: string, params?: Record<string, string>): Promise<T> {
+  private async fetchJson<T>(path: string, params?: Record<string, string>, signal?: AbortSignal): Promise<T> {
     await this.rateLimit();
 
     const url = new URL(`${this.baseUrl}${path}`);
@@ -111,6 +111,7 @@ export class SimcoToolsClient {
 
     const res = await fetch(url.toString(), {
       headers: { accept: "application/json" },
+      signal,
     });
 
     if (!res.ok) {
@@ -170,11 +171,18 @@ export class SimcoToolsClient {
     const params: Record<string, string> = {};
     if (startDate) params.start = startDate;
     if (endDate) params.end = endDate;
-    const data = await this.fetchJson<unknown>(`/market/resources/${resourceId}/${quality}/candlesticks`, params);
-    if (Array.isArray(data)) return data;
-    if (data && typeof data === "object" && "candlesticks" in data) return (data as { candlesticks: any[] }).candlesticks;
-    if (data && typeof data === "object" && "results" in data) return (data as { results: any[] }).results;
-    throw new ApiError(`Unexpected candlesticks response shape for resource ${resourceId} quality ${quality}`);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    try {
+      const data = await this.fetchJson<unknown>(`/market/resources/${resourceId}/${quality}/candlesticks`, params, controller.signal);
+      if (Array.isArray(data)) return data;
+      if (data && typeof data === "object" && "candlesticks" in data) return (data as { candlesticks: any[] }).candlesticks;
+      if (data && typeof data === "object" && "results" in data) return (data as { results: any[] }).results;
+      throw new ApiError(`Unexpected candlesticks response shape for resource ${resourceId} quality ${quality}`);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 

@@ -92,7 +92,11 @@ export async function runBackfillVWAP(realm: number): Promise<BackfillResult> {
   const dateResourceVwap: Map<string, Map<number, Map<number, number>>> = new Map();
   let totalApiCalls = 0;
 
-  for (const rid of resourceIds) {
+  for (const [idx, rid] of resourceIds.entries()) {
+    if (idx > 0 && idx % 20 === 0) {
+      logger.info(`[backfill-vwap] API progress: ${idx}/${resourceIds.length} resources (${totalApiCalls} calls so far)`);
+    }
+
     const qualitiesToTry: number[] = [];
     for (let q = 0; q <= 12; q++) qualitiesToTry.push(q);
 
