@@ -13,6 +13,7 @@ import { runRelationalPipeline } from "../../jobs/relationalPipeline.js";
 import { runDashboardPipeline } from "../../jobs/dashboardPipeline.js";
 import { runPublicExportPipeline } from "../../jobs/publicExportPipeline.js";
 import { runAllLatestVWAPInflation } from "../../jobs/vwapInflation.js";
+import { runAllProfitMargins } from "../../jobs/profitMargins.js";
 import { DataRepoWriter } from "../../storage/dataRepoWriter.js";
 import { recordFetchResult } from "../../jobs/failureTracker.js";
 import { updatePipelineRun } from "../../jobs/operationalStatus.js";
@@ -116,6 +117,7 @@ export async function handleCronCycle(req: IncomingMessage, res: ServerResponse)
 
   const pipelines: [string, () => Promise<{ ok: boolean; durationsMs?: { total?: number } }>][] = [
     ["macro", () => runMacroPipeline()],
+    ["profit-margins", () => cfg.macroSettings.enableProfitMargins ? runAllProfitMargins() : Promise.resolve({ ok: true })],
     ["intelligence", () => runIntelligencePipeline()],
     ["relational", () => runRelationalPipeline()],
     ["dashboard", () => runDashboardPipeline()],

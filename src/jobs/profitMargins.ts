@@ -19,6 +19,11 @@ export interface ProfitEntry {
   mg: number;
   vw: number;
   ir: boolean;
+  m1?: number;
+  n1?: number;
+  md?: "up" | "down" | "flat";
+  fp?: number;
+  td?: "improving" | "declining" | "stable";
 }
 
 export interface ProfitMarginsReport {
@@ -62,6 +67,90 @@ function buildVwapMap(snapshot: MarketSnapshot): Map<number, Map<number, number>
     map.get(v.i)!.set(v.q, v.v);
   }
   return map;
+}
+
+function findMarginsFiles(dataRepoPath: string, realm: number, limit: number): string[] {
+  const dir = resolve(dataRepoPath, "aggregates", "profit-margins", `realm-${realm}`);
+  if (!existsSync(dir)) return [];
+
+  return readdirSync(dir)
+    .filter((f) => f.startsWith("profit-margins-") && f.endsWith(".json") && f !== "index.json")
+    .sort()
+    .reverse()
+    .slice(0, limit)
+    .map((f) => join(dir, f));
+}
+
+function computeDeltas(current: ProfitEntry[], previous: ProfitEntry[]): ProfitEntry[] {
+  const prevMap = new Map<number, ProfitEntry>();
+  for (const p of previous) prevMap.set(p.i, p);
+
+  return current.map((e) => {
+    const prev = prevMap.get(e.i);
+    if (!prev) return e;
+
+    const marginDelta = e.mg - prev.mg;
+    const profitDelta = e.np - prev.np;
+    let direction: "up" | "down" | "flat" = "flat";
+    if (marginDelta > 0.5) direction = "up";
+    else if (marginDelta < -0.5) direction = "down";
+
+    return {
+      ...e,
+      m1: Math.round(marginDelta * 100) / 100,
+      n1: Math.round(profitDelta * 100) / 100,
+      md: direction,
+    };
+  });
+}
+
+function findPreviousMarginsFile(dataRepoPath: string, realm: number): string | null {
+  const files = findMarginsFiles(dataRepoPath, realm, 1);
+  return files.length > 0 ? files[0] : null;
+}
+
+function computeProjections(current: ProfitEntry[], prevFiles: string[]): ProfitEntry[] {
+  const marginHistory = new Map<number, number[]>();
+  for (const f of prevFiles) {
+    try {
+      const report = JSON.parse(readFileSync(f, "utf-8")) as ProfitMarginsReport;
+      if (!report.rs) continue;
+      for (const e of report.rs) {
+        if (!marginHistory.has(e.i)) marginHistory.set(e.i, []);
+        marginHistory.get(e.i)!.push(e.mg);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return current.map((e) => {
+    const history = marginHistory.get(e.i);
+    if (!history || history.length < 2) return e;
+
+    const allValues = [...history, e.mg];
+    const n = allValues.length;
+    const indices = Array.from({ length: n }, (_, i) => i);
+    const xMean = (n - 1) / 2;
+    const yMean = allValues.reduce((a, b) => a + b, 0) / n;
+    let num = 0;
+    let den = 0;
+    for (let i = 0; i < n; i++) {
+      num += (i - xMean) * (allValues[i] - yMean);
+      den += (i - xMean) ** 2;
+    }
+    const slope = den > 0 ? num / den : 0;
+    const projected = e.mg + slope;
+
+    const absSlope = Math.abs(slope);
+    const trend: "improving" | "declining" | "stable" = slope > 0.3 ? "improving" : slope < -0.3 ? "declining" : "stable";
+
+    return {
+      ...e,
+      fp: Math.round(projected * 100) / 100,
+      td: trend,
+    };
+  });
 }
 
 function getBestVwap(resourceId: number, vwapMap: Map<number, Map<number, number>>): number | undefined {
@@ -152,6 +241,31 @@ export function computeProfitMargins(realm: number): ProfitMarginsReport & { ok:
   }
 
   entries.sort((a, b) => b.mg - a.mg);
+
+  try {
+    const prevFile = findPreviousMarginsFile(cfg.dataRepo.path, realm);
+    if (prevFile) {
+      const prevData = JSON.parse(readFileSync(prevFile, "utf-8")) as ProfitMarginsReport;
+      if (prevData.rs) {
+        const withDeltas = computeDeltas(entries, prevData.rs);
+        entries.length = 0;
+        entries.push(...withDeltas);
+      }
+    }
+  } catch {
+    logger.debug(`[realm ${realm}] Could not read previous margins for deltas`);
+  }
+
+  try {
+    const histFiles = findMarginsFiles(cfg.dataRepo.path, realm, 7);
+    if (histFiles.length > 1) {
+      const withProjections = computeProjections(entries, histFiles.slice(1));
+      entries.length = 0;
+      entries.push(...withProjections);
+    }
+  } catch {
+    logger.debug(`[realm ${realm}] Could not compute projections`);
+  }
 
   const report: ProfitMarginsReport = {
     t: new Date().toISOString(),
