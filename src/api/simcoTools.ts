@@ -80,18 +80,19 @@ export interface CompanyBuilding {
 export class SimcoToolsClient {
   private baseUrl: string;
   private lastRequestTime = 0;
+  private minInterval: number;
 
-  constructor(realm: number = 0, apiBaseUrl?: string) {
+  constructor(realm: number = 0, apiBaseUrl?: string, minInterval = 600) {
     const base = apiBaseUrl ? apiBaseUrl.replace(/\/+$/, "") : "https://api.simcotools.com/v1/realms";
     this.baseUrl = `${base}/${realm}`;
+    this.minInterval = minInterval;
   }
 
   private async rateLimit(): Promise<void> {
     const now = Date.now();
     const elapsed = now - this.lastRequestTime;
-    const minInterval = 600;
-    if (elapsed < minInterval) {
-      await new Promise((r) => setTimeout(r, minInterval - elapsed));
+    if (this.minInterval > 0 && elapsed < this.minInterval) {
+      await new Promise((r) => setTimeout(r, this.minInterval - elapsed));
     }
     this.lastRequestTime = Date.now();
   }

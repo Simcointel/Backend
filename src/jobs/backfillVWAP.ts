@@ -86,7 +86,7 @@ export async function runBackfillVWAP(realm: number): Promise<BackfillResult> {
     return { ok: true, datesProcessed: 0, datesSkipped: allDates.length, totalDates: allDates.length, totalApiCalls: 0, resourceVwapsWritten: 0, indexesWritten: 0, inflationWritten: 0, durationMs: Date.now() - start, errors: [] };
   }
 
-  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
+  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl, 100);
   const writer = new DataRepoWriter(cfg.dataRepo);
 
   const dateResourceVwap: Map<string, Map<number, Map<number, number>>> = new Map();
@@ -298,6 +298,15 @@ export async function runAllBackfillVWAP(): Promise<{ ok: boolean; results: Arra
       if (!r.value.ok) allOk = false;
     } else {
       allOk = false;
+    }
+  }
+
+  if (fulfilled.some(r => r.resourceVwapsWritten > 0 || r.indexesWritten > 0)) {
+    try {
+      const writer = new DataRepoWriter(cfg.dataRepo);
+      await writer.commitAndPush("auto: backfill VWAP historical data");
+    } catch (err) {
+      logger.warn(`Backfill commitAndPush failed: ${err instanceof Error ? err.message : err}`);
     }
   }
 
