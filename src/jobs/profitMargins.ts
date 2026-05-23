@@ -35,14 +35,22 @@ export interface ProfitMarginsReport {
 
 function findLatestSnapshot(dataRepoPath: string, realm: number): string | null {
   const dir = resolve(dataRepoPath, "snapshots", "market", `realm-${realm}`);
-  if (!existsSync(dir)) return null;
+  if (!existsSync(dir)) {
+    logger.warn(`[realm ${realm}] Snapshot directory not found: ${dir} (dataRepo.path=${dataRepoPath})`);
+    return null;
+  }
 
   const files = readdirSync(dir)
     .filter((f) => f.startsWith("market-snapshot-") && f.endsWith(".json"))
     .sort()
     .reverse();
 
-  return files.length > 0 ? join(dir, files[0]) : null;
+  if (files.length === 0) {
+    logger.warn(`[realm ${realm}] No market-snapshot files in ${dir}`);
+    return null;
+  }
+
+  return join(dir, files[0]);
 }
 
 function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph: number; w: number; tr: number; inputs: Map<number, number>; ir: boolean }> {
@@ -317,9 +325,13 @@ export async function runAllProfitMargins(): Promise<{ ok: boolean; results: Arr
   for (const r of results) {
     if (r.status === "fulfilled") {
       fulfilled.push(r.value);
-      if (!r.value.ok) allOk = false;
+      if (!r.value.ok) {
+        allOk = false;
+        logger.warn(`Profit margins realm ${r.value.realm} failed`);
+      }
     } else {
       allOk = false;
+      logger.warn(`Profit margins rejected: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
     }
   }
 

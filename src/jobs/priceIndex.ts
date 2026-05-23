@@ -23,14 +23,22 @@ export interface IndexReport {
 
 function findLatestSnapshot(dataRepoPath: string, realm: number): string | null {
   const dir = resolve(dataRepoPath, "snapshots", "market", `realm-${realm}`);
-  if (!existsSync(dir)) return null;
+  if (!existsSync(dir)) {
+    logger.warn(`[realm ${realm}] Snapshot directory not found: ${dir} (dataRepo.path=${dataRepoPath})`);
+    return null;
+  }
 
   const files = readdirSync(dir)
     .filter((f) => f.startsWith("market-snapshot-") && f.endsWith(".json"))
     .sort()
     .reverse();
 
-  return files.length > 0 ? join(dir, files[0]) : null;
+  if (files.length === 0) {
+    logger.warn(`[realm ${realm}] No market-snapshot files in ${dir}`);
+    return null;
+  }
+
+  return join(dir, files[0]);
 }
 
 function findSnapshots(dataRepoPath: string, realm: number, limit: number): string[] {
