@@ -182,12 +182,12 @@ export async function runBackfill(realm: number): Promise<HistorySyncResult> {
       const year = parseInt(dateStr.slice(0, 4), 10);
       const entry: HistoryEntry = {
         d: dateStr,
-        ac: s.activeCompanies,
-        cv: s.companiesValue,
-        tb: s.totalBuildings,
-        bs: s.bondsSold,
-        ph: s.phase,
-        cp: s.completed,
+        ac: s.activeCompanies ?? 0,
+        cv: s.companiesValue ?? 0,
+        tb: s.totalBuildings ?? 0,
+        bs: s.bondsSold ?? 0,
+        ph: s.phase ?? "unknown",
+        cp: s.completed ?? false,
       };
       batch.push(entry);
 

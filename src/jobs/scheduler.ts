@@ -68,7 +68,8 @@ export async function startScheduler(): Promise<void> {
   logger.info(`  intelligence:   ${cfg.intelligence.enableRealmIntelligence ? "enabled" : "disabled"}`);
   logger.info("========================================");
 
-  runAllBackfillVWAP().then(result => {
+  // Stagger backfill start 5s to avoid competing with cycle 1's API calls
+  setTimeout(() => runAllBackfillVWAP().then(result => {
     if (result.ok) {
       const total = result.results.reduce((s, r) => s + r.datesProcessed, 0);
       if (total > 0) logger.info(`VWAP backfill: ${total} dates processed across ${result.results.length} realms`);
@@ -78,7 +79,7 @@ export async function startScheduler(): Promise<void> {
     }
   }).catch(err => {
     logger.warn(`VWAP backfill failed: ${err instanceof Error ? err.message : err}`);
-  });
+  }), 5000);
 
   while (!shuttingDown) {
     cycle++;

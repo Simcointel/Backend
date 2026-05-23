@@ -28,7 +28,7 @@
     "construction": {
       "name": "Construction",
       "description": "Building materials and construction equipment",
-      "resourceIds": [74, 109, 111, 112]
+      "resourceIds": [109, 111, 112]
     },
     "aerospace": {
       "name": "Aerospace & Vehicles",
