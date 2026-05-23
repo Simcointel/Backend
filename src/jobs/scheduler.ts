@@ -14,6 +14,7 @@ import { runDashboardPipeline } from "./dashboardPipeline.js";
 import { updatePipelineRun } from "./operationalStatus.js";
 import { emit } from "../events/eventBus.js";
 import { runPublicExportPipeline } from "./publicExportPipeline.js";
+import { runAllBackfillVWAP } from "./backfillVWAP.js";
 
 let shuttingDown = false;
 let schedulerRunning = false;
@@ -66,6 +67,19 @@ export async function startScheduler(): Promise<void> {
   logger.info(`  compression:    ${cfg.featureFlags.enableCompression}`);
   logger.info(`  intelligence:   ${cfg.intelligence.enableRealmIntelligence ? "enabled" : "disabled"}`);
   logger.info("========================================");
+
+  try {
+    const backfillResult = await runAllBackfillVWAP();
+    if (backfillResult.ok) {
+      const total = backfillResult.results.reduce((s, r) => s + r.datesProcessed, 0);
+      if (total > 0) logger.info(`VWAP backfill: ${total} dates processed across ${backfillResult.results.length} realms`);
+      else logger.info("VWAP backfill: all dates already filled (no-op)");
+    } else {
+      logger.warn("VWAP backfill had errors — check logs for details");
+    }
+  } catch (err) {
+    logger.warn(`VWAP backfill failed: ${err instanceof Error ? err.message : err}`);
+  }
 
   while (!shuttingDown) {
     cycle++;
