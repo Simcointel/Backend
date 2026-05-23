@@ -1,9 +1,10 @@
-import { readdirSync, existsSync } from "fs";
-import { join } from "path";
+import { readFileSync, readdirSync, existsSync } from "fs";
+import { resolve, join } from "path";
 import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
 import { SimcoToolsClient } from "../api/simcoTools.js";
 import { DataRepoWriter } from "../storage/dataRepoWriter.js";
+import type { MarketSnapshot } from "./fetchJob.js";
 
 const BACKFILL_START = "2026-02-23";
 
@@ -39,7 +40,7 @@ export interface VWAPInflationResult {
   errors: string[];
 }
 
-interface VWAPData {
+export interface VWAPData {
   t: string;
   r: number;
   overall: { vw: number; n: number };
@@ -235,6 +236,61 @@ export async function runVWAPInflation(realm: number): Promise<VWAPInflationResu
     durationMs,
     errors,
   };
+}
+
+export async function runLatestVWAPInflation(realm: number): Promise<{ ok: boolean; error?: string }> {
+  const cfg = loadConfig();
+  const snapDir = resolve(cfg.dataRepo.path, "snapshots", "market", `realm-${realm}`);
+  if (!existsSync(snapDir)) return { ok: false, error: "no snapshot dir" };
+  const files = readdirSync(snapDir).filter(f => f.startsWith("market-snapshot-") && f.endsWith(".json")).sort().reverse();
+  if (files.length === 0) return { ok: false, error: "no snapshot files" };
+
+  let snapshot: MarketSnapshot;
+  try { snapshot = JSON.parse(readFileSync(join(snapDir, files[0]), "utf-8")); }
+  catch { return { ok: false, error: "failed to parse snapshot" }; }
+
+  const resourceNames = new Map(snapshot.rc.map(r => [r.i, r.n]));
+  const qualitySums = new Map<number, { sum: number; count: number }>();
+  const productQ0 = new Map<number, number>();
+  const both = new Map<string, number>();
+
+  for (const v of snapshot.vw) {
+    const qs = qualitySums.get(v.q) ?? { sum: 0, count: 0 };
+    qs.sum += v.v; qs.count++;
+    qualitySums.set(v.q, qs);
+    if (v.q === 0) { productQ0.set(v.i, v.v); }
+    both.set(`${v.i}_${v.q}`, v.v);
+  }
+
+  let overallSum = 0, overallCount = 0;
+  for (const vw of productQ0.values()) { overallSum += vw; overallCount++; }
+
+  const dateStr = snapshot.t.slice(0, 10);
+  const data: VWAPData = {
+    t: dateStr, r: realm,
+    overall: { vw: overallCount > 0 ? Math.round((overallSum / overallCount) * 10000) / 10000 : 0, n: overallCount },
+    quality: Object.fromEntries([...qualitySums].map(([q, qd]) => [String(q), { vw: Math.round((qd.sum / qd.count) * 10000) / 10000, n: qd.count }])),
+    product: Object.fromEntries([...productQ0].map(([rid, vw]) => [String(rid), { nm: resourceNames.get(rid) ?? `Resource ${rid}`, vw: Math.round(vw * 10000) / 10000 }])),
+    both: Object.fromEntries([...both].map(([key, vw]) => {
+      const rid = Number(key.split("_")[0]);
+      return [key, { nm: resourceNames.get(rid) ?? `Resource ${rid}`, vw: Math.round(vw * 10000) / 10000 }];
+    })),
+  };
+
+  const writer = new DataRepoWriter({ path: cfg.dataRepo.path, githubToken: "", owner: "", repo: "", branch: "main" });
+  await writer.writeSnapshot({ timestamp: dateStr, snapshotType: "vwap-inflation", data }, `aggregates/vwap-inflation/realm-${realm}`);
+  return { ok: true };
+}
+
+export async function runAllLatestVWAPInflation(): Promise<{ ok: boolean; results: Array<{ realm: number; ok: boolean }> }> {
+  const cfg = loadConfig();
+  const results = await Promise.allSettled(cfg.simco.realms.map(async (r) => {
+    const res = await runLatestVWAPInflation(r);
+    return { realm: r, ok: res.ok };
+  }));
+  const fulfilled: Array<{ realm: number; ok: boolean }> = [];
+  for (const r of results) { if (r.status === "fulfilled") fulfilled.push(r.value); }
+  return { ok: fulfilled.every(r => r.ok), results: fulfilled };
 }
 
 export async function runAllVWAPInflation(): Promise<{ ok: boolean; results: Array<{ realm: number } & VWAPInflationResult> }> {

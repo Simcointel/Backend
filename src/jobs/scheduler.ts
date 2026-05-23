@@ -15,6 +15,7 @@ import { updatePipelineRun } from "./operationalStatus.js";
 import { emit } from "../events/eventBus.js";
 import { runPublicExportPipeline } from "./publicExportPipeline.js";
 import { runAllBackfillVWAP } from "./backfillVWAP.js";
+import { runAllVWAPInflation, runAllLatestVWAPInflation } from "./vwapInflation.js";
 
 let shuttingDown = false;
 let schedulerRunning = false;
@@ -81,6 +82,19 @@ export async function startScheduler(): Promise<void> {
     logger.warn(`VWAP backfill failed: ${err instanceof Error ? err.message : err}`);
   }), 5000);
 
+  // Stagger vwap-inflation backfill 10s (after backfill-vwap so they don't compete)
+  setTimeout(() => runAllVWAPInflation().then(result => {
+    if (result.ok) {
+      const total = result.results.reduce((s, r) => s + r.filesWritten, 0);
+      if (total > 0) logger.info(`VWAP inflation backfill: ${total} files written across ${result.results.length} realms`);
+      else logger.info("VWAP inflation backfill: all dates already filled (no-op)");
+    } else {
+      logger.warn("VWAP inflation backfill had errors — check logs");
+    }
+  }).catch(err => {
+    logger.warn(`VWAP inflation backfill failed: ${err instanceof Error ? err.message : err}`);
+  }), 10000);
+
   while (!shuttingDown) {
     cycle++;
     const cycleStart = Date.now();
@@ -121,6 +135,11 @@ export async function startScheduler(): Promise<void> {
     const macroResult = await runMacroPipeline();
     if (!macroResult.ok) {
       logger.warn("Macro pipeline had failures");
+    }
+
+    const vwapInfResult = await runAllLatestVWAPInflation();
+    if (!vwapInfResult.ok) {
+      logger.warn("VWAP inflation incremental had failures");
     }
 
     if (cfg.featureFlags.enableRetentionCleanup) {
