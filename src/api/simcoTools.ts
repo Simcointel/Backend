@@ -167,15 +167,11 @@ export class SimcoToolsClient {
     return this.fetchJson<CompanyData>(`/companies/${userId}`);
   }
 
-  async getMarketCandlesticks(resourceId: number, quality: number, startDate?: string, endDate?: string): Promise<any[]> {
-    const params: Record<string, string> = {};
-    if (startDate) params.start = startDate;
-    if (endDate) params.end = endDate;
-
+  async getMarketCandlesticks(resourceId: number, quality: number, _startDate?: string, _endDate?: string): Promise<any[]> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
     try {
-      const data = await this.fetchJson<unknown>(`/market/resources/${resourceId}/${quality}/candlesticks`, params, controller.signal);
+      const data = await this.fetchJson<unknown>(`/market/resources/${resourceId}/${quality}/candlesticks`, undefined, controller.signal);
       if (Array.isArray(data)) return data;
       if (data && typeof data === "object" && "candlesticks" in data) return (data as { candlesticks: any[] }).candlesticks;
       if (data && typeof data === "object" && "results" in data) return (data as { results: any[] }).results;
