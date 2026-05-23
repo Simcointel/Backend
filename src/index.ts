@@ -23,6 +23,7 @@ import {
 } from "./jobs/macroHistory.js";
 import { runIntelligencePipeline } from "./jobs/intelligencePipeline.js";
 import { runAllBackfillVWAP } from "./jobs/backfillVWAP.js";
+import { runAllVWAPInflation } from "./jobs/vwapInflation.js";
 import { runRelationalPipeline } from "./jobs/relationalPipeline.js";
 import { runDashboardPipeline } from "./jobs/dashboardPipeline.js";
 import { runPublicExportPipeline } from "./jobs/publicExportPipeline.js";
@@ -192,6 +193,12 @@ async function main() {
 
   if (args.includes("backfill-vwap")) {
     const result = await runAllBackfillVWAP();
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (args.includes("vwap-inflation")) {
+    const result = await runAllVWAPInflation();
     console.log(JSON.stringify(result, null, 2));
     return;
   }
