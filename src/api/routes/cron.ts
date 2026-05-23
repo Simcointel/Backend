@@ -12,6 +12,7 @@ import { runIntelligencePipeline } from "../../jobs/intelligencePipeline.js";
 import { runRelationalPipeline } from "../../jobs/relationalPipeline.js";
 import { runDashboardPipeline } from "../../jobs/dashboardPipeline.js";
 import { runPublicExportPipeline } from "../../jobs/publicExportPipeline.js";
+import { runAllLatestVWAPInflation } from "../../jobs/vwapInflation.js";
 import { DataRepoWriter } from "../../storage/dataRepoWriter.js";
 import { recordFetchResult } from "../../jobs/failureTracker.js";
 import { updatePipelineRun } from "../../jobs/operationalStatus.js";
@@ -118,6 +119,7 @@ export async function handleCronCycle(req: IncomingMessage, res: ServerResponse)
     ["intelligence", () => runIntelligencePipeline()],
     ["relational", () => runRelationalPipeline()],
     ["dashboard", () => runDashboardPipeline()],
+    ["vwap-inflation", () => runAllLatestVWAPInflation()],
   ];
 
   for (const [name, fn] of pipelines) {
