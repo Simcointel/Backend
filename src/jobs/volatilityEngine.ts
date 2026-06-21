@@ -20,7 +20,15 @@ export interface VolatilityResult {
   error?: string;
 }
 
-export function computeVolatility(realm: number): VolatilityResult {
+import { cache } from "../cache.js";
+
+export function computeVolatility(realm: number, skipCache = false): VolatilityResult {
+  const cacheKey = `volatility-${realm}`;
+  if (!skipCache) {
+    const cached = cache.get<VolatilityResult>(cacheKey);
+    if (cached) return cached;
+  }
+
   const cfg = loadConfig();
   const shortP = cfg.intelligence.volatilityShortPeriods;
   const mediumP = cfg.intelligence.volatilityMediumPeriods;
@@ -92,11 +100,13 @@ export function computeVolatility(realm: number): VolatilityResult {
   const sr: Record<string, number> = {};
   sortedCats.forEach(([cat], idx) => { sr[cat] = idx + 1; });
 
-  return {
+  const result = {
     t: new Date().toISOString(), r: realm,
     vol, sr,
     ok: true,
   };
+  cache.set(cacheKey, result, 15 * 60 * 1000);
+  return result;
 }
 
 export function computeAllVolatility(): Promise<{ ok: boolean; results: VolatilityResult[] }> {

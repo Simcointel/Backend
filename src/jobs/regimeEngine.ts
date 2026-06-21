@@ -7,7 +7,7 @@ import { computeMomentum, type MomentumResult } from "./momentumEngine.js";
 import { computeVolatility, type VolatilityResult } from "./volatilityEngine.js";
 import { computeStress, type StressResult } from "./stressEngine.js";
 
-export type RegimeLabel = "expansion" | "boom" | "overheating" | "contraction" | "recovery" | "stagnation";
+export type RegimeLabel = "expansion" | "boom" | "overheating" | "contraction" | "recovery" | "stagnation" | "normal" | "recession";
 
 export interface RegimeFactors {
   cvGrowth: number;
@@ -43,7 +43,14 @@ interface RegimeYearFile {
 }
 
 function classifyRegime(factors: RegimeFactors): { regime: RegimeLabel; confidence: number } {
+  const cfg = loadConfig();
   const { cvGrowth, acGrowth, avgInflation, avgStress, avgVolatility, phase } = factors;
+
+  if (cfg.macroSettings.enableOfficialPhaseRegime) {
+    if (phase === "boom") return { regime: "boom", confidence: 1.0 };
+    if (phase === "recession") return { regime: "recession", confidence: 1.0 };
+    if (phase === "normal") return { regime: "normal", confidence: 1.0 };
+  }
 
   if (cvGrowth > 3 && avgInflation > 3 && avgVolatility > 2 && avgStress > 0.4) {
     return { regime: "overheating", confidence: 0.85 };

@@ -16,7 +16,7 @@ describe("momentumEngine", () => {
   it("returns ok for sufficient history", async () => {
     mockLoadIndexHistory.mockReturnValue(generateIndexHistory(0, 30));
     const { computeMomentum } = await import("../../jobs/momentumEngine.js");
-    const result = computeMomentum(0);
+    const result = computeMomentum(0, true);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(Object.keys(result.momentum).length).toBeGreaterThan(0);
@@ -26,7 +26,7 @@ describe("momentumEngine", () => {
   it("returns ok=false for insufficient history", async () => {
     mockLoadIndexHistory.mockReturnValue([]);
     const { computeMomentum } = await import("../../jobs/momentumEngine.js");
-    const result = computeMomentum(0);
+    const result = computeMomentum(0, true);
     expect(result.ok).toBe(false);
     expect(result.error).toContain("insufficient");
   });
@@ -36,7 +36,7 @@ describe("momentumEngine", () => {
     injectIndexSpike(history, "energy-fuel", 15, 5);
     mockLoadIndexHistory.mockReturnValue(history);
     const { computeMomentum } = await import("../../jobs/momentumEngine.js");
-    const result = computeMomentum(0);
+    const result = computeMomentum(0, true);
     expect(result.ok).toBe(true);
     if (result.ok) {
       for (const cat of Object.values(result.momentum)) {
@@ -49,7 +49,7 @@ describe("momentumEngine", () => {
   it("momentum values are finite for all categories", async () => {
     mockLoadIndexHistory.mockReturnValue(generateIndexHistory(0, 60));
     const { computeMomentum } = await import("../../jobs/momentumEngine.js");
-    const result = computeMomentum(0);
+    const result = computeMomentum(0, true);
     expect(result.ok).toBe(true);
     if (result.ok) {
       for (const [cat, m] of Object.entries(result.momentum)) {
@@ -62,7 +62,7 @@ describe("momentumEngine", () => {
   it("only one snapshot returns insufficient history", async () => {
     mockLoadIndexHistory.mockReturnValue(generateIndexHistory(0, 1));
     const { computeMomentum } = await import("../../jobs/momentumEngine.js");
-    const result = computeMomentum(0);
+    const result = computeMomentum(0, true);
     expect(result.ok).toBe(false);
   });
 });

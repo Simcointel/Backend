@@ -11,6 +11,13 @@ export interface Resource {
   isResearch: boolean;
   speedModifier: number;
   retailInfo: Array<Record<string, unknown>> | null;
+  producedAt: number; // Building ID
+}
+
+export interface Building {
+  id: number;
+  name: string;
+  wages: number;
 }
 
 export interface ResourcesResponse {
@@ -165,6 +172,15 @@ export class SimcoToolsClient {
 
   async getCompany(userId: number): Promise<CompanyData> {
     return this.fetchJson<CompanyData>(`/companies/${userId}`);
+  }
+
+  async getBuildings(): Promise<Building[]> {
+    const data = await this.fetchJson<unknown>("/buildings");
+    if (Array.isArray(data)) return data as Building[];
+    if (data && typeof data === "object" && "buildings" in data) {
+      return (data as { buildings: Building[] }).buildings;
+    }
+    throw new ApiError("Unexpected buildings response shape");
   }
 
   async getMarketCandlesticks(resourceId: number, quality: number, _startDate?: string, _endDate?: string): Promise<any[]> {

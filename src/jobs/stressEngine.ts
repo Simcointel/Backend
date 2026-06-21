@@ -28,7 +28,17 @@ export interface StressResult {
   error?: string;
 }
 
-export function computeStress(realm: number, momentumResult?: MomentumResult, volatilityResult?: VolatilityResult): StressResult {
+import { cache } from "../cache.js";
+
+export function computeStress(realm: number, momentumResult?: MomentumResult, volatilityResult?: VolatilityResult, skipCache = false): StressResult {
+  const cacheKey = `stress-${realm}`;
+  const useProvidedData = momentumResult || volatilityResult;
+
+  if (!skipCache && !useProvidedData) {
+    const cached = cache.get<StressResult>(cacheKey);
+    if (cached) return cached;
+  }
+
   const cfg = loadConfig();
   const rapidInfThreshold = cfg.intelligence.rapidInflationThreshold;
   const collapseThreshold = cfg.intelligence.collapseThreshold;
@@ -107,12 +117,16 @@ export function computeStress(realm: number, momentumResult?: MomentumResult, vo
 
   const overallScore = totalChecks > 0 ? Math.round((activeFlags / totalChecks) * 100) / 100 : 0;
 
-  return {
+  const result = {
     t: new Date().toISOString(), r: realm,
     stress,
     rs: { os: overallScore, af: activeFlags, tf: totalChecks },
     ok: true,
   };
+  if (!useProvidedData) {
+    cache.set(cacheKey, result, 15 * 60 * 1000);
+  }
+  return result;
 }
 
 export function computeAllStress(): Promise<{ ok: boolean; results: StressResult[] }> {
