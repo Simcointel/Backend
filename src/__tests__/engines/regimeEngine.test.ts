@@ -15,6 +15,7 @@ vi.mock("../../config/index.js", () => ({
     simco: { realms: [0] },
     intelligence: { regimeLookbackDays: 30, regimeUseStress: true, mediumTermPeriods: 20, shortTermPeriods: 5 },
     macroIndexes: { categories: Object.fromEntries(CATEGORIES.map((c) => [c, {}])) },
+    macroSettings: { enableOfficialPhaseRegime: true },
   }),
 }));
 

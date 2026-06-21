@@ -21,7 +21,15 @@ export interface MomentumResult {
   error?: string;
 }
 
-export function computeMomentum(realm: number): MomentumResult {
+import { cache } from "../cache.js";
+
+export function computeMomentum(realm: number, skipCache = false): MomentumResult {
+  const cacheKey = `momentum-${realm}`;
+  if (!skipCache) {
+    const cached = cache.get<MomentumResult>(cacheKey);
+    if (cached) return cached;
+  }
+
   const cfg = loadConfig();
   const stp = cfg.intelligence.shortTermPeriods;
   const mtp = cfg.intelligence.mediumTermPeriods;
@@ -81,11 +89,13 @@ export function computeMomentum(realm: number): MomentumResult {
     };
   }
 
-  return {
+  const result = {
     t: new Date().toISOString(), r: realm,
     momentum, stp, mtp,
     ok: true,
   };
+  cache.set(cacheKey, result, 15 * 60 * 1000); // 15 min cache
+  return result;
 }
 
 export function computeAllMomentum(): Promise<{ ok: boolean; results: MomentumResult[] }> {

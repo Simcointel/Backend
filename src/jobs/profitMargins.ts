@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
 import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
+import { SimcoToolsClient } from "../api/simcoTools.js";
 import { DataRepoWriter } from "../storage/dataRepoWriter.js";
 import type { MarketSnapshot } from "./fetchJob.js";
 
@@ -53,7 +54,7 @@ function findLatestSnapshot(dataRepoPath: string, realm: number): string | null 
   return join(dir, files[0]);
 }
 
-function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph: number; w: number; tr: number; inputs: Map<number, number>; ir: boolean }> {
+function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph: number; w: number; tr: number; inputs: Map<number, number>; ir: boolean; sm: number }> {
   const map = new Map();
   for (const r of snapshot.rc) {
     map.set(r.i, {
@@ -63,6 +64,7 @@ function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph
       tr: r.tr,
       inputs: new Map(Object.entries(r.in).map(([id, qty]) => [Number(id), qty])),
       ir: r.ir,
+      sm: r.sm || 1,
     });
   }
   return map;
@@ -169,11 +171,26 @@ function getBestVwap(resourceId: number, vwapMap: Map<number, Map<number, number
   return best[0]?.[1];
 }
 
-export function computeProfitMargins(realm: number): ProfitMarginsReport & { ok: boolean; error?: string } {
+export async function computeProfitMargins(realm: number): Promise<ProfitMarginsReport & { ok: boolean; error?: string }> {
   const cfg = loadConfig();
   const categories = cfg.macroIndexes.categories;
   const marketFeePct = cfg.formulas.marketFeePct ?? 4;
   const transportMultiplier = cfg.formulas.defaultTransportCostMultiplier ?? 1;
+  const totalLevels = cfg.macroSettings.totalBuildingLevels || 1;
+  const adminOverheadPct = Math.max(0, (totalLevels - 1) * 100 / 170) / 100;
+
+  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
+  let buildings: any[] = [];
+  try {
+    buildings = await client.getBuildings();
+  } catch (err) {
+    logger.warn(`[realm ${realm}] Failed to fetch buildings for labor calculation: ${err}`);
+  }
+
+  const buildingWageMap = new Map<number, number>();
+  for (const b of buildings) {
+    buildingWageMap.set(b.id, b.wages);
+  }
 
   const snapshotPath = findLatestSnapshot(cfg.dataRepo.path, realm);
   if (!snapshotPath) {
@@ -223,10 +240,17 @@ export function computeProfitMargins(realm: number): ProfitMarginsReport & { ok:
 
     if (!allInputsHavePrices && res.inputs.size > 0) continue;
 
-    const wages = res.w;
+    const baseWages = buildingWageMap.has(res.producedAt)
+      ? buildingWageMap.get(res.producedAt)!
+      : res.w;
+
+    const laborCostPerUnit = baseWages / (res.ph || 1);
+    const adminOverhead = laborCostPerUnit * adminOverheadPct;
+    const totalLaborCost = laborCostPerUnit + adminOverhead;
+
     const transport = res.tr * transportMultiplier;
 
-    const netProfit = netRevenue - inputCost - wages - transport;
+    const netProfit = netRevenue - inputCost - totalLaborCost - transport;
     const margin = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
 
     const cat = resourceToCategory.get(rid) ?? { key: "other", name: "Other" };
@@ -286,7 +310,7 @@ export function computeProfitMargins(realm: number): ProfitMarginsReport & { ok:
 }
 
 export async function runProfitMargins(realm: number): Promise<{ ok: boolean; report: ProfitMarginsReport | null; error?: string }> {
-  const result = computeProfitMargins(realm);
+  const result = await computeProfitMargins(realm);
   if (!result.ok) {
     return { ok: false, report: null, error: result.error };
   }

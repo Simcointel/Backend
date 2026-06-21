@@ -82,6 +82,9 @@ export interface MacroSettings {
   indexBaseValue: number;
   summaryHistoryDays: number;
   priceRetentionDays: number;
+  enableOfficialPhaseRegime: boolean;
+  useBuildingLabor: boolean;
+  totalBuildingLevels: number;
 }
 
 export interface MacroHistoryConfig {

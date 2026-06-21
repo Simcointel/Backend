@@ -100,6 +100,9 @@ export function loadConfig(): SimcoIntelConfig {
     indexBaseValue: 100,
     summaryHistoryDays: 90,
     priceRetentionDays: 7,
+    enableOfficialPhaseRegime: true,
+    useBuildingLabor: true,
+    totalBuildingLevels: 1,
   };
 
   const macroHistoryDefaults: MacroHistoryConfig = {
@@ -247,7 +250,7 @@ export function loadConfig(): SimcoIntelConfig {
   };
 
   const dataRepo: DataRepoConfig = {
-    path: envString("DATA_REPO_PATH", "../Data"),
+    path: envString("DATA_REPO_PATH", existsSync("/tmp/data-repo") ? "/tmp/data-repo" : "../Data"),
     githubToken: envString("GITHUB_TOKEN", ""),
     owner: envString("DATA_REPO_OWNER", "SimcoIntel"),
     repo: envString("DATA_REPO_NAME", "Data"),
