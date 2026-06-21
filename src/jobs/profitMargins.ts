@@ -2,7 +2,8 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
 import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
-import { SimcoToolsClient } from "../api/simcoTools.js";
+import { SimcoToolsClient, type Building } from "../api/simcoTools.js";
+import { cache } from "../cache.js";
 import { DataRepoWriter } from "../storage/dataRepoWriter.js";
 import type { MarketSnapshot } from "./fetchJob.js";
 
@@ -54,7 +55,7 @@ function findLatestSnapshot(dataRepoPath: string, realm: number): string | null 
   return join(dir, files[0]);
 }
 
-function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph: number; w: number; tr: number; inputs: Map<number, number>; ir: boolean; sm: number }> {
+function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph: number; w: number; tr: number; inputs: Map<number, number>; ir: boolean; sm: number; pa: number }> {
   const map = new Map();
   for (const r of snapshot.rc) {
     map.set(r.i, {
@@ -65,6 +66,7 @@ function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph
       inputs: new Map(Object.entries(r.in).map(([id, qty]) => [Number(id), qty])),
       ir: r.ir,
       sm: r.sm || 1,
+      pa: r.pa,
     });
   }
   return map;
@@ -180,11 +182,17 @@ export async function computeProfitMargins(realm: number): Promise<ProfitMargins
   const adminOverheadPct = Math.max(0, (totalLevels - 1) * 100 / 170) / 100;
 
   const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
-  let buildings: any[] = [];
-  try {
-    buildings = await client.getBuildings();
-  } catch (err) {
-    logger.warn(`[realm ${realm}] Failed to fetch buildings for labor calculation: ${err}`);
+  const buildingCacheKey = `buildings-${realm}`;
+  let buildings = cache.get<Building[]>(buildingCacheKey);
+
+  if (!buildings) {
+    try {
+      buildings = await client.getBuildings();
+      cache.set(buildingCacheKey, buildings, 60 * 60 * 1000); // 1 hour cache
+    } catch (err) {
+      logger.warn(`[realm ${realm}] Failed to fetch buildings for labor calculation: ${err}`);
+      buildings = [];
+    }
   }
 
   const buildingWageMap = new Map<number, number>();
@@ -240,8 +248,8 @@ export async function computeProfitMargins(realm: number): Promise<ProfitMargins
 
     if (!allInputsHavePrices && res.inputs.size > 0) continue;
 
-    const baseWages = buildingWageMap.has(res.producedAt)
-      ? buildingWageMap.get(res.producedAt)!
+    const baseWages = buildingWageMap.has(res.pa)
+      ? buildingWageMap.get(res.pa)!
       : res.w;
 
     const laborCostPerUnit = baseWages / (res.ph || 1);
@@ -263,7 +271,7 @@ export async function computeProfitMargins(realm: number): Promise<ProfitMargins
       ph: res.ph,
       rv: Math.round(netRevenue * 100) / 100,
       ic: Math.round(inputCost * 100) / 100,
-      wg: Math.round(wages * 100) / 100,
+      wg: Math.round(totalLaborCost * 100) / 100,
       tr: Math.round(transport * 100) / 100,
       np: Math.round(netProfit * 100) / 100,
       mg: Math.round(margin * 100) / 100,
