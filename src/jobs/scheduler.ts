@@ -2,20 +2,11 @@ import { loadConfig } from "../config/index.js";
 import { logger } from "../logging/logger.js";
 import { runFetch, runFetchForRealm } from "./fetchJob.js";
 import { runAggregation } from "./aggregate.js";
-import { runExpandedAggregation } from "./expandedAggregate.js";
 import { retentionCleanup } from "./cleanup.js";
 import { runCompression } from "./compress.js";
 import { recordFetchResult, getFailureStatus } from "./failureTracker.js";
-import { sendFailureAlert } from "./alerter.js";
-import { runMacroPipeline } from "./macroPipeline.js";
-import { runIntelligencePipeline } from "./intelligencePipeline.js";
-import { runRelationalPipeline } from "./relationalPipeline.js";
-import { runDashboardPipeline } from "./dashboardPipeline.js";
-import { updatePipelineRun } from "./operationalStatus.js";
 import { emit } from "../events/eventBus.js";
 import { runPublicExportPipeline } from "./publicExportPipeline.js";
-import { runAllBackfillVWAP } from "./backfillVWAP.js";
-import { runAllVWAPInflation, runAllLatestVWAPInflation } from "./vwapInflation.js";
 import { runAllProfitMargins } from "./profitMargins.js";
 
 let shuttingDown = false;
@@ -58,7 +49,6 @@ export async function startScheduler(): Promise<void> {
   logger.info(`  interval:       ${cfg.schedules.fetchIntervalMinutes} min (${intervalMs} ms)`);
   logger.info(`  retention:      ${cfg.schedules.snapshotRetentionDays} days`);
   logger.info(`  compress:       every ${cfg.schedules.compressionIntervalDays} days`);
-  logger.info(`  analytics:      window=${cfg.schedules.analyticsWindowSize}`);
   logger.info(`  macro:          realmMetrics=${cfg.macroSettings.enableRealmMetrics}, priceIndexes=${cfg.macroSettings.enablePriceIndexes}, inflation=${cfg.macroSettings.enableInflationTracking}, profitMargins=${cfg.macroSettings.enableProfitMargins}`);
   logger.info(`  macro-history:  ${cfg.macroHistory.enableHistoryIngestion ? "enabled" : "disabled"}, backfill=${cfg.macroHistory.enableBackfill}, lookback=${cfg.macroHistory.backfillLookbackDays}d`);
   logger.info(`  commit-push:    ${cfg.featureFlags.enableCommitPush}`);
@@ -67,34 +57,8 @@ export async function startScheduler(): Promise<void> {
   logger.info(`  analytics:      ${cfg.featureFlags.enableAnalytics}`);
   logger.info(`  cleanup:        ${cfg.featureFlags.enableRetentionCleanup}`);
   logger.info(`  compression:    ${cfg.featureFlags.enableCompression}`);
-  logger.info(`  intelligence:   ${cfg.intelligence.enableRealmIntelligence ? "enabled" : "disabled"}`);
   logger.info("========================================");
 
-  // Stagger backfill start 5s to avoid competing with cycle 1's API calls
-  setTimeout(() => runAllBackfillVWAP().then(result => {
-    if (result.ok) {
-      const total = result.results.reduce((s, r) => s + r.datesProcessed, 0);
-      if (total > 0) logger.info(`VWAP backfill: ${total} dates processed across ${result.results.length} realms`);
-      else logger.info("VWAP backfill: all dates already filled (no-op)");
-    } else {
-      logger.warn("VWAP backfill had errors — check logs");
-    }
-  }).catch(err => {
-    logger.warn(`VWAP backfill failed: ${err instanceof Error ? err.message : err}`);
-  }), 5000);
-
-  // Stagger vwap-inflation backfill 10s (after backfill-vwap so they don't compete)
-  setTimeout(() => runAllVWAPInflation().then(result => {
-    if (result.ok) {
-      const total = result.results.reduce((s, r) => s + r.filesWritten, 0);
-      if (total > 0) logger.info(`VWAP inflation backfill: ${total} files written across ${result.results.length} realms`);
-      else logger.info("VWAP inflation backfill: all dates already filled (no-op)");
-    } else {
-      logger.warn("VWAP inflation backfill had errors — check logs");
-    }
-  }).catch(err => {
-    logger.warn(`VWAP inflation backfill failed: ${err instanceof Error ? err.message : err}`);
-  }), 10000);
 
   while (!shuttingDown) {
     cycle++;
@@ -111,10 +75,6 @@ export async function startScheduler(): Promise<void> {
 
     if (failureStatus.consecutive >= cfg.schedules.consecutiveFailureThreshold) {
       logger.error(`FAILURE THRESHOLD EXCEEDED: ${failureStatus.consecutive} consecutive failures`);
-
-      if (cfg.featureFlags.enableAlerting && cfg.alerts.webhookUrl) {
-        await sendFailureAlert(cfg.alerts.webhookUrl, failureStatus.consecutive, failureStatus.threshold);
-      }
     }
 
     if (cfg.featureFlags.enableCommitPush && process.env.SYNC_SECRET) {
@@ -126,21 +86,6 @@ export async function startScheduler(): Promise<void> {
         const aggResult = await runAggregation(cfg.dataRepo.path, realm);
         if (!aggResult.ok) logger.warn(`[realm ${realm}] Aggregation skipped`, aggResult.error ?? "");
       }
-
-      if (cfg.featureFlags.enableAnalytics) {
-        const analyticResult = await runExpandedAggregation(cfg.dataRepo.path, realm, cfg.schedules.analyticsWindowSize);
-        if (!analyticResult.ok) logger.warn(`[realm ${realm}] Analytics skipped`, analyticResult.error ?? "");
-      }
-    }
-
-    const macroResult = await runMacroPipeline();
-    if (!macroResult.ok) {
-      logger.warn("Macro pipeline had failures");
-    }
-
-    const vwapInfResult = await runAllLatestVWAPInflation();
-    if (!vwapInfResult.ok) {
-      logger.warn("VWAP inflation incremental had failures");
     }
 
     if (cfg.macroSettings.enableProfitMargins) {
@@ -155,31 +100,14 @@ export async function startScheduler(): Promise<void> {
       if (!cleanupResult.ok) logger.warn("Cleanup reported error", cleanupResult.error ?? "");
     }
 
-    const intelResult = await runIntelligencePipeline();
-    if (!intelResult.ok) {
-      logger.warn("Intelligence pipeline had failures");
-    }
 
-    const relResult = await runRelationalPipeline();
-    if (!relResult.ok) {
-      logger.warn("Relational pipeline had failures");
-    }
-
-    const dashResult = await runDashboardPipeline();
-    if (!dashResult.ok) {
-      logger.warn("Dashboard pipeline had failures");
-    }
 
     // Public dataset export (every cycle)
-    const exportResult = runPublicExportPipeline();
+    const exportResult = await runPublicExportPipeline();
     if (!exportResult.ok) {
       logger.warn("Public export pipeline had failures", exportResult.errors.join(", "));
     }
 
-    updatePipelineRun("macro", macroResult.ok, macroResult.durationsMs.total);
-    updatePipelineRun("intelligence", intelResult.ok, intelResult.durationsMs.total);
-    updatePipelineRun("relational", relResult.ok, relResult.durationsMs.total);
-    updatePipelineRun("dashboard", dashResult.ok, dashResult.durationsMs.total);
 
     if (cfg.featureFlags.enableCompression && cycle - lastCompressCycle >= getCompressIntervalCycles(cfg.schedules.compressionIntervalDays, cfg.schedules.fetchIntervalMinutes)) {
       for (const realm of cfg.simco.realms) {

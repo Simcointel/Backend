@@ -4,19 +4,12 @@ import { loadConfig } from "../../config/index.js";
 import { logger } from "../../logging/logger.js";
 import { runFetch } from "../../jobs/fetchJob.js";
 import { runAggregation } from "../../jobs/aggregate.js";
-import { runExpandedAggregation } from "../../jobs/expandedAggregate.js";
 import { retentionCleanup } from "../../jobs/cleanup.js";
 import { runCompression } from "../../jobs/compress.js";
-import { runMacroPipeline } from "../../jobs/macroPipeline.js";
-import { runIntelligencePipeline } from "../../jobs/intelligencePipeline.js";
-import { runRelationalPipeline } from "../../jobs/relationalPipeline.js";
-import { runDashboardPipeline } from "../../jobs/dashboardPipeline.js";
 import { runPublicExportPipeline } from "../../jobs/publicExportPipeline.js";
-import { runAllLatestVWAPInflation } from "../../jobs/vwapInflation.js";
 import { runAllProfitMargins } from "../../jobs/profitMargins.js";
 import { DataRepoWriter } from "../../storage/dataRepoWriter.js";
 import { recordFetchResult } from "../../jobs/failureTracker.js";
-import { updatePipelineRun } from "../../jobs/operationalStatus.js";
 
 function checkSecret(req: IncomingMessage): boolean {
   const expected = process.env.CRON_SECRET;
@@ -104,31 +97,16 @@ export async function handleCronCycle(req: IncomingMessage, res: ServerResponse)
       }
     }
 
-    if (cfg.featureFlags.enableAnalytics) {
-      try {
-        const analyticResult = await runExpandedAggregation(cfg.dataRepo.path, realm, cfg.schedules.analyticsWindowSize);
-        results[`analytics-${realm}`] = { ok: analyticResult.ok };
-        if (!analyticResult.ok) errors.push(`analytics-${realm}: ${analyticResult.error ?? "unknown"}`);
-      } catch (err) {
-        errors.push(`analytics-${realm}: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
   }
 
   const pipelines: [string, () => Promise<{ ok: boolean; durationsMs?: { total?: number } }>][] = [
-    ["macro", () => runMacroPipeline()],
     ["profit-margins", () => cfg.macroSettings.enableProfitMargins ? runAllProfitMargins() : Promise.resolve({ ok: true })],
-    ["intelligence", () => runIntelligencePipeline()],
-    ["relational", () => runRelationalPipeline()],
-    ["dashboard", () => runDashboardPipeline()],
-    ["vwap-inflation", () => runAllLatestVWAPInflation()],
   ];
 
   for (const [name, fn] of pipelines) {
     try {
       const result = await fn();
       results[name] = { ok: result.ok };
-      updatePipelineRun(name, result.ok, result.durationsMs?.total ?? 0);
       if (!result.ok) errors.push(`${name} pipeline failed`);
     } catch (err) {
       errors.push(`${name}: ${err instanceof Error ? err.message : String(err)}`);
@@ -136,7 +114,7 @@ export async function handleCronCycle(req: IncomingMessage, res: ServerResponse)
   }
 
   try {
-    const exportResult = runPublicExportPipeline();
+    const exportResult = await runPublicExportPipeline();
     results["public-export"] = { ok: exportResult.ok };
     if (!exportResult.ok) errors.push("public-export: " + exportResult.errors.join(", "));
   } catch (err) {
@@ -166,7 +144,7 @@ export async function handleCronCycle(req: IncomingMessage, res: ServerResponse)
   if (cfg.featureFlags.enableCommitPush) {
     try {
       const writer = new DataRepoWriter(cfg.dataRepo);
-      await writer.commitAndPush(`cron cycle`);
+      await writer.commitAndPush(`cron cycle and public export`);
     } catch (err) {
       errors.push("commit-push: " + (err instanceof Error ? err.message : String(err)));
     }

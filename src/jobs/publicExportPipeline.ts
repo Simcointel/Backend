@@ -2,23 +2,17 @@ import { writeFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 
 import { resolve } from "path";
 import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
+import { DataRepoWriter } from "../storage/dataRepoWriter.js";
 import { getDataRoot } from "./intelligenceUtils.js";
 import {
-  loadLastDashboardSummaries,
   loadLatestMacroData,
   loadMacroHistory,
   loadMacroIndexes,
   loadMacroInflation,
-  loadCorrelations,
-  loadAnomalies,
-  loadDivergence,
-  loadContagion,
-  loadSectorIntelligence,
 } from "../api/routes/publicData.js";
-import { computeForecasts } from "./forecastEngine.js";
-import { generateSignals } from "./signalEngine.js";
-import { detectCycle } from "./cycleEngine.js";
-import { computeDependencies } from "./dependencyEngine.js";
+import { runMacroPipeline } from "./macroPipeline.js";
+import { computeProfitMargins } from "./profitMargins.js";
+import { validatePublicDataset } from "./validation.js";
 
 export interface PublicExportResult {
   ok: boolean;
@@ -40,92 +34,81 @@ function writeJson(dir: string, name: string, data: unknown): { path: string; by
   }
 }
 
-export function runPublicExportPipeline(): PublicExportResult {
+
+export async function runPublicExportPipeline(): Promise<PublicExportResult> {
   const start = Date.now();
   const result: PublicExportResult = { ok: true, files: [], errors: [], durationMs: 0 };
   const cfg = loadConfig();
   const publicDir = resolve(getDataRoot(), "public");
   const realms = cfg.simco.realms;
 
+  // Run the macro pipeline first to ensure data is fresh
+  try {
+    await runMacroPipeline();
+  } catch (err) {
+    logger.warn(`Macro pipeline failed before export: ${err}`);
+  }
+
   try {
     if (!existsSync(publicDir)) mkdirSync(publicDir, { recursive: true });
-
-    // Dashboard
-    const dash = loadLastDashboardSummaries();
-    const df = writeJson(publicDir, "dashboard.json", dash);
-    if (df) result.files.push(df);
 
     // Per-realm datasets
     for (const realm of realms) {
       const rd = resolve(publicDir, `realm-${realm}`);
       if (!existsSync(rd)) mkdirSync(rd, { recursive: true });
 
+      // 1. Macro Data
       const macro = loadLatestMacroData(realm);
-      const mf = writeJson(rd, "macro.json", macro);
-      if (mf) result.files.push(mf);
+      if (validatePublicDataset("macro", macro).valid) {
+        const mf = writeJson(rd, "macro.json", macro);
+        if (mf) result.files.push(mf);
+      }
 
+      // 2. History (Last 120 entries)
       const history = loadMacroHistory(realm, 120);
-      const hf = writeJson(rd, "history.json", history.entries);
-      if (hf) result.files.push(hf);
+      if (validatePublicDataset("history", history.entries).valid) {
+        const hf = writeJson(rd, "history.json", history.entries);
+        if (hf) result.files.push(hf);
+      }
 
+      // 3. Price Indexes
       const indexes = loadMacroIndexes(realm, 60);
-      const inf = writeJson(rd, "indexes.json", indexes.indexes);
-      if (inf) result.files.push(inf);
+      if (validatePublicDataset("indexes", indexes.indexes).valid) {
+        const inf = writeJson(rd, "indexes.json", indexes.indexes);
+        if (inf) result.files.push(inf);
+      }
 
+      // 4. Inflation
       const inflation = loadMacroInflation(realm, 60);
-      const inflf = writeJson(rd, "inflation.json", inflation.inflation);
-      if (inflf) result.files.push(inflf);
-    }
+      if (validatePublicDataset("inflation", inflation.inflation).valid) {
+        const inflf = writeJson(rd, "inflation.json", inflation.inflation);
+        if (inflf) result.files.push(inflf);
+      }
 
-    // Cross-realm intelligence
-    const sectors = loadSectorIntelligence();
-    const sf = writeJson(publicDir, "sectors.json", sectors);
-    if (sf) result.files.push(sf);
-
-    const correlations = loadCorrelations();
-    const cf = writeJson(publicDir, "correlations.json", correlations);
-    if (cf) result.files.push(cf);
-
-    const anomalies = loadAnomalies();
-    const af = writeJson(publicDir, "anomalies.json", anomalies);
-    if (af) result.files.push(af);
-
-    const divergence = loadDivergence();
-    const df2 = writeJson(publicDir, "divergence.json", divergence);
-    if (df2) result.files.push(df2);
-
-    const contagion = loadContagion();
-    const cof = writeJson(publicDir, "contagion.json", contagion);
-    if (cof) result.files.push(cof);
-
-    // Per-realm forecast datasets
-    for (const realm of realms) {
-      const rd = resolve(publicDir, `realm-${realm}`);
+      // 5. Profit Margins (NEW: Critical for frontend)
       try {
-        const fc = computeForecasts(realm);
-        if (fc.ok) { const ff = writeJson(rd, "forecast.json", fc.series); if (ff) result.files.push(ff); }
-        const sg = generateSignals(realm);
-        if (sg.ok) { const sf2 = writeJson(rd, "signals.json", sg.signals); if (sf2) result.files.push(sf2); }
-        const cy = detectCycle(realm);
-        if (cy.ok) { const cf2 = writeJson(rd, "cycles.json", cy); if (cf2) result.files.push(cf2); }
-        const dp = computeDependencies(realm);
-        if (dp.ok) { const df3 = writeJson(rd, "dependencies.json", dp); if (df3) result.files.push(df3); }
-      } catch { /* forecast export non-critical */ }
+        const margins = await computeProfitMargins(realm);
+        if (margins.ok && validatePublicDataset("margins", margins.rs).valid) {
+           const mgf = writeJson(rd, "margins.json", margins.rs);
+           if (mgf) result.files.push(mgf);
+        }
+      } catch (err) {
+        logger.warn(`[realm ${realm}] Failed to export margins: ${err}`);
+      }
     }
 
     // Manifest
     const manifest = {
+      version: "1.0.0",
       generatedAt: new Date().toISOString(),
       realms,
-      fileCount: result.files.length,
       files: result.files.map((f) => ({
-        path: f.path.replace(publicDir, "public"),
+        path: f.path.split("/public/")[1],
         bytes: f.bytes,
       })),
-      schema: "https://raw.githubusercontent.com/SimcoIntel/main/main/Data/public/schema.json",
     };
-    writeJson(publicDir, "manifest.json", manifest);
-    result.files.push({ path: resolve(publicDir, "manifest.json"), bytes: JSON.stringify(manifest).length });
+    const manf = writeJson(publicDir, "manifest.json", manifest);
+    if (manf) result.files.push(manf);
 
   } catch (err) {
     result.ok = false;
@@ -133,6 +116,17 @@ export function runPublicExportPipeline(): PublicExportResult {
   }
 
   result.durationMs = Date.now() - start;
+
+  // Push to Git if enabled
+  if (cfg.featureFlags.enableCommitPush) {
+    try {
+      const writer = new DataRepoWriter(cfg.dataRepo);
+      await writer.commitAndPush(`public export refresh`);
+    } catch (err) {
+      result.errors.push(`git-push: ${err}`);
+    }
+  }
+
   logger.info(`Public export pipeline: ${result.files.length} files in ${result.durationMs}ms`);
   return result;
 }
