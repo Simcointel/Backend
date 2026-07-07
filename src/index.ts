@@ -5,27 +5,12 @@ import { generateHealthReport, printHealthSync } from "./health/health.js";
 import { runFetch } from "./jobs/fetchJob.js";
 import { startScheduler, shutdown } from "./jobs/scheduler.js";
 import { runAggregation } from "./jobs/aggregate.js";
-import { runExpandedAggregation } from "./jobs/expandedAggregate.js";
 import { retentionCleanup } from "./jobs/cleanup.js";
 import { runCompression } from "./jobs/compress.js";
 import { getFailureStatus } from "./jobs/failureTracker.js";
 import { executeAction } from "./admin/index.js";
 import { startServer } from "./api/server.js";
 import { envNumber } from "./config/env.js";
-import { runMacroPipeline } from "./jobs/macroPipeline.js";
-import { runAllRealmMetrics } from "./jobs/realmMetrics.js";
-import { runAllPriceIndexes } from "./jobs/priceIndex.js";
-import { runAllInflationTracking } from "./jobs/macroInflation.js";
-import {
-  runAllHistorySync,
-  runAllBackfills,
-  runAllMacroArchives,
-} from "./jobs/macroHistory.js";
-import { runIntelligencePipeline } from "./jobs/intelligencePipeline.js";
-import { runAllBackfillVWAP } from "./jobs/backfillVWAP.js";
-import { runAllVWAPInflation } from "./jobs/vwapInflation.js";
-import { runRelationalPipeline } from "./jobs/relationalPipeline.js";
-import { runDashboardPipeline } from "./jobs/dashboardPipeline.js";
 import { runPublicExportPipeline } from "./jobs/publicExportPipeline.js";
 
 /**
@@ -95,28 +80,6 @@ async function main() {
     return;
   }
 
-  if (args.includes("analytics")) {
-    for (const realm of cfg.simco.realms) {
-      const result = await runExpandedAggregation(
-        cfg.dataRepo.path,
-        realm,
-        cfg.schedules.analyticsWindowSize,
-      );
-
-      console.log(
-        JSON.stringify(
-          {
-            realm,
-            ...result,
-          },
-          null,
-          2,
-        ),
-      );
-    }
-
-    return;
-  }
 
   if (args.includes("compress")) {
     const dryRun = args.includes("--dry-run");
@@ -167,100 +130,11 @@ async function main() {
     return;
   }
 
-  if (args.includes("macro")) {
-    const result = await runMacroPipeline();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
 
-  if (args.includes("realm-status")) {
-    const result = await runAllRealmMetrics();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
 
-  if (args.includes("price-indexes")) {
-    const result = await runAllPriceIndexes();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  if (args.includes("inflation")) {
-    const result = await runAllInflationTracking();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  if (args.includes("backfill-vwap")) {
-    const result = await runAllBackfillVWAP();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  if (args.includes("vwap-inflation")) {
-    const result = await runAllVWAPInflation();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  if (args.includes("macro-history")) {
-    const result = await runAllHistorySync();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  if (args.includes("macro-backfill")) {
-    const result = await runAllBackfills();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  if (args.includes("macro-archive")) {
-    const dryRun = args.includes("--dry-run");
-
-    const result = runAllMacroArchives(dryRun);
-
-    console.log(
-      JSON.stringify(
-        {
-          ...result,
-          dryRun,
-        },
-        null,
-        2,
-      ),
-    );
-
-    return;
-  }
-
-  if (args.includes("intelligence")) {
-    const result = await runIntelligencePipeline();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  if (
-    args.includes("relational") &&
-    !args.includes("correlations") &&
-    !args.includes("anomalies") &&
-    !args.includes("divergence") &&
-    !args.includes("contagion") &&
-    !args.includes("alerts")
-  ) {
-    const result = await runRelationalPipeline();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  if (args.includes("dashboard")) {
-    const result = await runDashboardPipeline();
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
 
   if (args.includes("public-export")) {
-    const result = runPublicExportPipeline();
+    const result = await runPublicExportPipeline();
     console.log(JSON.stringify(result, null, 2));
     return;
   }

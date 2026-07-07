@@ -24,6 +24,10 @@ function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function formatMonth(d: Date): string {
+  return d.toISOString().slice(0, 7); // YYYY-MM
+}
+
 export function runCompression(dataRepoPath: string, realm: number, retentionDays: number, dryRun = false): CompressResult {
   const snapshotsDir = resolve(dataRepoPath, "snapshots", "market", `realm-${realm}`);
   const archiveDir = resolve(dataRepoPath, "archives", "market", `realm-${realm}`);
@@ -47,7 +51,7 @@ export function runCompression(dataRepoPath: string, realm: number, retentionDay
     return { ok: true, archivedFiles: 0, archivePath: null, freedBytes: 0 };
   }
 
-  const periods = groupByPeriod(files);
+  const periods = groupByMonth(files);
 
   if (dryRun) {
     for (const [period, group] of periods) {
@@ -101,10 +105,10 @@ export function runCompression(dataRepoPath: string, realm: number, retentionDay
   return { ok: true, archivedFiles: totalArchived, archivePath: archiveDir, freedBytes: totalFreed };
 }
 
-function groupByPeriod(files: Array<{ name: string; path: string; date: Date }>): Map<string, typeof files> {
+function groupByMonth(files: Array<{ name: string; path: string; date: Date }>): Map<string, typeof files> {
   const map = new Map<string, typeof files>();
   for (const f of files) {
-    const period = formatDate(f.date);
+    const period = formatMonth(f.date);
     const group = map.get(period) ?? [];
     group.push(f);
     map.set(period, group);

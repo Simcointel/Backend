@@ -4,7 +4,6 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
 import { sendSuccess, sendError } from "../middleware.js";
 import { loadConfig } from "../../config/index.js";
-import { loadState } from "../../jobs/macroHistory.js";
 
 type HistoryEntry = { d: string; ac: number; cv: number; tb: number; bs: number; ph: string; cp: boolean };
 type HistoryFile = { r: number; y: number; e: HistoryEntry[] };
@@ -205,7 +204,6 @@ export async function handleMacroLatest(req: IncomingMessage, res: ServerRespons
   const r = parseRealmParam(realm);
   if (r === null) return sendError(res, 400, "Invalid realm");
 
-  const state = loadState(r);
 
   const allYears = loadAllYears(r);
   const archivedYears = loadArchivedYears(r);
@@ -251,13 +249,6 @@ export async function handleMacroLatest(req: IncomingMessage, res: ServerRespons
 
   sendSuccess(res, {
     realm: r,
-    state: {
-      backfillComplete: state.backfillComplete,
-      totalDaysStored: state.totalDaysStored,
-      oldestDateStored: state.oldestDateStored,
-      newestDateStored: state.newestDateStored,
-      lastSyncTime: state.lastSyncTime,
-    },
     latestHistory: latestEntry,
     latestIndexes,
     latestInflation,
@@ -265,11 +256,7 @@ export async function handleMacroLatest(req: IncomingMessage, res: ServerRespons
 }
 
 export async function handleMacroState(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
-  const r = parseRealmParam(realm);
-  if (r === null) return sendError(res, 400, "Invalid realm");
-
-  const state = loadState(r);
-  sendSuccess(res, state);
+  sendSuccess(res, { ok: true, message: "Macro state moved to public export" });
 }
 
 export async function handleMacroListHistory(req: IncomingMessage, res: ServerResponse): Promise<void> {

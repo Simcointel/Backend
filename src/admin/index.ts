@@ -6,7 +6,6 @@ import { setLogLevel } from "../logging/logger.js";
 import { logger } from "../logging/logger.js";
 import { runFetch } from "../jobs/fetchJob.js";
 import { runAggregation } from "../jobs/aggregate.js";
-import { runExpandedAggregation } from "../jobs/expandedAggregate.js";
 import { retentionCleanup } from "../jobs/cleanup.js";
 import { runCompression } from "../jobs/compress.js";
 import { generateHealthReport } from "../health/health.js";
@@ -34,12 +33,6 @@ export async function executeAction(action: string, params?: Record<string, unkn
       return { action, ok: result.ok, result };
     }
 
-    case "analytics": {
-      const realm = (params?.realm as number) ?? cfg.simco.realms[0];
-      const windowSize = (params?.windowSize as number) ?? cfg.schedules.analyticsWindowSize;
-      const result = await runExpandedAggregation(cfg.dataRepo.path, realm, windowSize);
-      return { action, ok: result.ok, result };
-    }
 
     case "cleanup": {
       const dryRun = (params?.dryRun as boolean) ?? false;
@@ -117,23 +110,6 @@ export async function executeAction(action: string, params?: Record<string, unkn
       return { action, ok: true, result: `log level set to ${level}` };
     }
 
-    case "intelligence": {
-      const { runIntelligencePipeline } = await import("../jobs/intelligencePipeline.js");
-      const result = await runIntelligencePipeline();
-      return { action, ok: result.ok, result };
-    }
-
-    case "relational": {
-      const { runRelationalPipeline } = await import("../jobs/relationalPipeline.js");
-      const result = await runRelationalPipeline();
-      return { action, ok: result.ok, result };
-    }
-
-    case "dashboard": {
-      const { runDashboardPipeline } = await import("../jobs/dashboardPipeline.js");
-      const result = await runDashboardPipeline();
-      return { action, ok: result.ok, result };
-    }
 
     default:
       return { action, ok: false, result: null, error: `unknown action: ${action}` };
