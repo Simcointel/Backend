@@ -22,6 +22,7 @@ interface ShrunkResource {
   ir: boolean;
   sm: number;
   pa: number;
+  ri?: Array<Record<string, unknown>> | null;
 }
 
 interface ShrunkVwap {
@@ -51,6 +52,7 @@ function shrinkResources(resources: Resource[]): ShrunkResource[] {
     ir: r.isResearch,
     sm: r.speedModifier,
     pa: r.producedAt,
+    ri: r.retailInfo,
   }));
 }
 

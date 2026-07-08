@@ -5,7 +5,7 @@
   },
   "defaultAdminOverheadPct": 0,
   "defaultTransportCostMultiplier": 1,
-  "marketFeePct": 4,
+  "marketFeePct": 3,
   "contractFeePct": 0,
   "contractTransportDiscountPct": 50,
   "robotWageReductionPct": 3,

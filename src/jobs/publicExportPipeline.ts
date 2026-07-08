@@ -12,6 +12,7 @@ import {
 } from "../api/routes/publicData.js";
 import { runMacroPipeline } from "./macroPipeline.js";
 import { computeProfitMargins } from "./profitMargins.js";
+import { runRetailSummary } from "./retailSummary.js";
 import { validatePublicDataset } from "./validation.js";
 
 export interface PublicExportResult {
@@ -85,7 +86,7 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
         if (inflf) result.files.push(inflf);
       }
 
-      // 5. Profit Margins (NEW: Critical for frontend)
+      // 5. Profit Margins (Critical for frontend)
       try {
         const margins = await computeProfitMargins(realm);
         if (margins.ok && validatePublicDataset("margins", margins.rs).valid) {
@@ -94,6 +95,19 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
         }
       } catch (err) {
         logger.warn(`[realm ${realm}] Failed to export margins: ${err}`);
+      }
+
+      // 6. Retail Data (for retail calculator)
+      try {
+        await runRetailSummary(realm);
+        const retailData = JSON.parse(readFileSync(resolve(getDataRoot(), "aggregates", "retail", `realm-${realm}`, "index.json"), "utf-8")) as { latest: string };
+        if (retailData.latest) {
+          const retail = JSON.parse(readFileSync(resolve(getDataRoot(), "aggregates", "retail", `realm-${realm}`, retailData.latest), "utf-8"));
+          const rf = writeJson(rd, "retail.json", retail);
+          if (rf) result.files.push(rf);
+        }
+      } catch (err) {
+        logger.warn(`[realm ${realm}] Failed to export retail data: ${err}`);
       }
     }
 
