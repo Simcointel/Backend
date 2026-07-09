@@ -6,7 +6,6 @@ import {
   loadMacroHistory,
   loadMacroIndexes,
   loadMacroInflation,
-  loadMacroPhases,
 } from "./publicData.js";
 import { getRateLimitStats } from "../rateLimiter.js";
 
