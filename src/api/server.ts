@@ -91,19 +91,6 @@ function buildRouter(): Router {
   return r;
 }
 
-function wrapForecastRoute(
-  handler: (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown, query: URLSearchParams) => void,
-  cacheTTL?: number,
-) {
-  return (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown) => {
-    if (!rateLimitMiddleware(req, res)) return;
-    if (cacheTTL) res.setHeader("Cache-Control", "public, max-age=" + cacheTTL);
-    const url = req.url || "/";
-    const query = new URLSearchParams(url.includes("?") ? url.split("?")[1] : "");
-    handler(req, res, params, body, query);
-  };
-}
-
 function wrapRateLimited(handler: (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown, query: URLSearchParams) => void) {
   return async (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown) => {
     if (!rateLimitMiddleware(req, res)) return;

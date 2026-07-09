@@ -7,7 +7,7 @@ import { loadConfig, reloadConfig } from "../../config/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const CONFIG_SECTIONS = ["formulas", "schedules", "featureFlags", "forecastSettings", "simulationSettings", "cycleSettings", "dependencyWeights"];
+const CONFIG_SECTIONS = ["formulas", "schedules", "featureFlags"];
 
 export async function handleListConfig(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const cfg = loadConfig();

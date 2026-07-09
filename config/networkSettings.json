@@ -1,8 +1,0 @@
-{
-  "apiVersion": "1.0",
-  "sseHeartbeatIntervalMs": 30000,
-  "sseMaxConnections": 100,
-  "eventBusMaxListeners": 50,
-  "enableRealtimeGateway": true,
-  "enableContractVersioning": true
-}

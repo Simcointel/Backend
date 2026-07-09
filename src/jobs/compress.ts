@@ -20,10 +20,6 @@ function parseSnapshotTimestamp(name: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function formatDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 function formatMonth(d: Date): string {
   return d.toISOString().slice(0, 7); // YYYY-MM
 }

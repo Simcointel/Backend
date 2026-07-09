@@ -49,7 +49,7 @@ export function handlePublicStatus(req: IncomingMessage, res: ServerResponse, _p
   const cfg = loadConfig();
   sendSuccess(res, {
     api: "SimcoIntel Public API",
-    version: cfg.network.apiVersion,
+    version: "1.0",
     realms: cfg.simco.realms,
     endpoints: {
       macro: "/api/public/macro?realm=0",

@@ -41,18 +41,6 @@ function findLatestSnapshot(dataRepoPath: string, realm: number): string | null 
   return join(dir, files[0]);
 }
 
-function findSnapshots(dataRepoPath: string, realm: number, limit: number): string[] {
-  const dir = resolve(dataRepoPath, "snapshots", "market", `realm-${realm}`);
-  if (!existsSync(dir)) return [];
-
-  return readdirSync(dir)
-    .filter((f) => f.startsWith("market-snapshot-") && f.endsWith(".json"))
-    .sort()
-    .reverse()
-    .slice(0, limit)
-    .map((f) => join(dir, f));
-}
-
 export async function runPriceIndexes(realm: number): Promise<{ ok: boolean; indexes: IndexReport["ix"] | null; error?: string }> {
   const cfg = loadConfig();
   const categories = cfg.macroIndexes.categories;

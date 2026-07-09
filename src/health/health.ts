@@ -138,9 +138,9 @@ export function printHealthSync(): void {
   const dataRepoPath = resolve(loadConfig().dataRepo.path);
   const dataRepoOk = existsSync(dataRepoPath);
 
-  console.log(`Simco Intel Backend – Health Check`);
-  console.log(`Timestamp: ${ts}`);
-  console.log(`config:     ${cfgStatus} – ${cfgDetail}`);
-  console.log(`data repo:  ${dataRepoOk ? "OK" : "MISSING"} – ${dataRepoPath}`);
-  console.log(`(API check requires async; run "npm start" for full report)`);
+  logger.info(`Simco Intel Backend – Health Check`);
+  logger.info(`Timestamp: ${ts}`);
+  logger.info(`config:     ${cfgStatus} – ${cfgDetail}`);
+  logger.info(`data repo:  ${dataRepoOk ? "OK" : "MISSING"} – ${dataRepoPath}`);
+  logger.info(`(API check requires async; run "npm start" for full report)`);
 }

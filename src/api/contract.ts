@@ -1,12 +1,10 @@
 import { ServerResponse } from "http";
-import { loadConfig } from "../config/index.js";
 import { sendJson } from "./middleware.js";
 
 const API_VERSION = "1.0";
 
 export function apiVersion(): string {
-  const cfg = loadConfig();
-  return cfg.network.apiVersion || API_VERSION;
+  return API_VERSION;
 }
 
 export function sendVersionedSuccess(res: ServerResponse, data: unknown, meta?: Record<string, unknown>): void {

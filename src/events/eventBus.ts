@@ -1,15 +1,15 @@
 import { logger } from "../logging/logger.js";
-import { loadConfig } from "../config/index.js";
 import type { EventType, BusEvent, EventHandler } from "./eventTypes.js";
 
 const listeners = new Map<string, Set<EventHandler>>();
+const MAX_LISTENERS = 20;
 
 export function on(type: EventType, handler: EventHandler): void {
   if (!listeners.has(type)) listeners.set(type, new Set());
   listeners.get(type)!.add(handler);
-  const max = loadConfig().network.eventBusMaxListeners;
-  if ((listeners.get(type)?.size || 0) > max) {
-    logger.warn(`Event bus listener leak: ${type} has ${listeners.get(type)?.size} listeners (max: ${max})`);
+  const count = listeners.get(type)?.size ?? 0;
+  if (count > MAX_LISTENERS) {
+    logger.warn(`Event bus listener leak: ${type} has ${count} listeners (max: ${MAX_LISTENERS})`);
   }
 }
 
