@@ -66,24 +66,31 @@ export async function executeAction(action: string, params?: Record<string, unkn
       return { action, ok: true, result: { health, failures, realms: cfg.simco.realms } };
     }
 
-    case "reload-config":
-      reloadConfig();
-      logger.info("Config reloaded");
-      return { action, ok: true, result: "config reloaded" };
+    case "reload-config": {
+          console.log("[executeAction] reload-config: calling reloadConfig");
+          reloadConfig();
+          console.log("[executeAction] reload-config: reloadConfig returned");
+          logger.info("Config reloaded");
+          return { action, ok: true, result: "config reloaded" };
+        }
 
     case "get-config": {
-      const { dataRepo, logging, schedules, formulas, featureFlags, alerts } = cfg;
-      return {
-        action,
-        ok: true,
-        result: {
-          realms: cfg.simco.realms,
-          logging, schedules, formulas, featureFlags,
-          alerts: { webhookUrl: alerts.webhookUrl ? "(set)" : "(empty)" },
-          dataRepo: { ...dataRepo, githubToken: dataRepo.githubToken ? "(set)" : "(empty)" },
-        },
-      };
-    }
+          console.log("[executeAction] get-config: start");
+          const { dataRepo, logging, schedules, formulas, featureFlags, alerts } = cfg;
+          console.log("[executeAction] get-config: building result");
+          const result = {
+            action,
+            ok: true,
+            result: {
+              realms: cfg.simco.realms,
+              logging, schedules, formulas, featureFlags,
+              alerts: { webhookUrl: alerts.webhookUrl ? "(set)" : "(empty)" },
+              dataRepo: { ...dataRepo, githubToken: dataRepo.githubToken ? "(set)" : "(empty)" },
+            },
+          };
+          console.log("[executeAction] get-config: returning result");
+          return result;
+        }
 
     case "update-config": {
       const section = params?.section as string;

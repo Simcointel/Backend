@@ -1,12 +1,12 @@
-import { IncomingMessage, ServerResponse } from "http";
+import { Request, Response } from "express";
 
 export interface RouteParams {
   [key: string]: string;
 }
 
 export type RouteHandler = (
-  req: IncomingMessage,
-  res: ServerResponse,
+  req: Request,
+  res: Response,
   params: RouteParams,
   body?: unknown,
 ) => void | Promise<void>;

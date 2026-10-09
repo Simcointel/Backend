@@ -3,12 +3,12 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import { existsSync, mkdirSync, readFileSync } from "fs";
 import { join, resolve, extname, dirname } from "path";
 import { fileURLToPath } from "url";
-import express, { Express } from "express";
+import express, { Express, Request, Response, NextFunction } from "express";
 import { logger } from "../logging/logger.js";
 
 try { setDefaultResultOrder("ipv4first"); logger.info("DNS: IPv4-first resolution enabled"); } catch { /* pre-18.13 Node */ }
 import { Router } from "./router.js";
-import { sendSuccess, sendError, parseJsonBody, requestLogger, enableCors, handleOptions } from "./middleware.js";
+import { sendSuccess, sendError, requestLogger } from "./middleware.js";
 import { rateLimitMiddleware } from "./rateLimiter.js";
 import { handleHealth } from "./routes/health.js";
 import { handleStatus } from "./routes/status.js";
@@ -90,8 +90,8 @@ function buildRouter(): Router {
   return r;
 }
 
-function wrapRateLimited(handler: (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown, query: URLSearchParams) => void) {
-  return async (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown) => {
+function wrapRateLimited(handler: (req: Request, res: Response, params: Record<string, string>, body: unknown, query: URLSearchParams) => void) {
+  return async (req: Request, res: Response, params: Record<string, string>, body: unknown) => {
     if (!rateLimitMiddleware(req, res)) return;
     const url = req.url || "/";
     const query = new URLSearchParams(url.includes("?") ? url.split("?")[1] : "");
@@ -191,6 +191,34 @@ export function createApp(): Express {
     logger.error("Scheduler failed to start", err instanceof Error ? err.message : String(err));
   });
 
+  // Parse JSON bodies for all routes
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    console.log(`[MIDDLEWARE] express.json() for ${req.method} ${req.url}`);
+    next();
+  });
+
+  app.use(express.json());
+
+    // Debug: log request body after parsing
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.method === "POST" || req.method === "PUT") {
+        console.log(`[BODY-PARSED] ${req.method} ${req.url} body=`, JSON.stringify(req.body));
+      }
+      next();
+    });
+
+    // Enable CORS for ALL requests (including API routes)
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+      res.setHeader("Access-Control-Max-Age", "86400");
+      if (req.method === "OPTIONS") {
+        return res.sendStatus(204);
+      }
+      next();
+    });
+
   // Serve admin dashboard from /admin
   // In Vercel, __dirname is the dist folder, admin is at project root
   // Try multiple possible locations
@@ -215,38 +243,33 @@ export function createApp(): Express {
     logger.warn("Admin static directory not found in any expected location");
   }
 
-  app.use(async (req, res) => {
-    requestLogger(req, res);
-    enableCors(res);
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
+      requestLogger(req, res);
+      console.log(`[SERVER] ${req.method} ${req.url}`);
 
-    if (await handleOptions(req, res)) return;
+      const url = req.url || "/";
+      const baseUrl = getBaseUrl(req);
 
-    const url = req.url || "/";
-    const baseUrl = getBaseUrl(req);
+      try {
+        const match = router.match(req.method || "GET", url, baseUrl);
 
-    try {
-      const match = router.match(req.method || "GET", url, baseUrl);
-
-      if (!match) {
-        return sendError(res, 404, `No route: ${req.method} ${new URL(url, baseUrl).pathname}`);
-      }
-
-      const method = req.method || "GET";
-      if (method === "POST" || method === "PUT") {
-        try {
-          const body = await parseJsonBody(req);
-          await match.handler(req, res, match.params, body);
-        } catch {
-          await match.handler(req, res, match.params, undefined);
+        if (!match) {
+          console.log(`[SERVER] No match for ${req.method} ${url}`);
+          return sendError(res, 404, `No route: ${req.method} ${new URL(url, baseUrl).pathname}`);
         }
-      } else {
-        await match.handler(req, res, match.params, undefined);
+
+        console.log(`[SERVER] Matched route: ${req.method} ${url} -> handler: ${match.handler.name || 'anonymous'}`);
+        const body = req.body;
+        console.log(`[SERVER] Body:`, JSON.stringify(body));
+        console.log(`[SERVER] Calling handler...`);
+        const handlerResult = await match.handler(req, res, match.params, body);
+        console.log(`[SERVER] Handler completed, result:`, handlerResult);
+      } catch (err) {
+        console.error("[SERVER] Unhandled server error:", err);
+        logger.error("Unhandled server error", err instanceof Error ? err.message : String(err));
+        sendError(res, 500, "Internal server error");
       }
-    } catch (err) {
-      logger.error("Unhandled server error", err instanceof Error ? err.message : String(err));
-      sendError(res, 500, "Internal server error");
-    }
-  });
+    });
 
   return app;
 }
