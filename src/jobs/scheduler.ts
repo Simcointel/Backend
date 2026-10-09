@@ -9,6 +9,7 @@ import { emit } from "../events/eventBus.js";
 import { runPublicExportPipeline } from "./publicExportPipeline.js";
 import { runAllProfitMargins } from "./profitMargins.js";
 import { runAllHistorySync } from "./macroHistory.js";
+import { runAllGovernmentOrders } from "./governmentOrders.js";
 
 let shuttingDown = false;
 let schedulerRunning = false;
@@ -35,6 +36,7 @@ function formatUptime(ms: number): string {
 }
 
 let lastCompressCycle = 0;
+let lastGovernmentOrdersCycle = 0;
 
 export async function startScheduler(): Promise<void> {
   const cfg = loadConfig();
@@ -52,7 +54,8 @@ export async function startScheduler(): Promise<void> {
   logger.info(`  compress:       every ${cfg.schedules.compressionIntervalDays} days`);
   logger.info(`  macro:          realmMetrics=${cfg.macroSettings.enableRealmMetrics}, priceIndexes=${cfg.macroSettings.enablePriceIndexes}, inflation=${cfg.macroSettings.enableInflationTracking}, profitMargins=${cfg.macroSettings.enableProfitMargins}`);
   logger.info(`  macro-history:  ${cfg.macroHistory.enableHistoryIngestion ? "enabled" : "disabled"}, backfill=${cfg.macroHistory.enableBackfill}, lookback=${cfg.macroHistory.backfillLookbackDays}d`);
-  logger.info(`  commit-push:    ${cfg.featureFlags.enableCommitPush}`);
+    logger.info(`  government orders: ${cfg.governmentOrders.enableGovernmentOrders ? "enabled" : "disabled"}, day=${cfg.governmentOrders.fetchDayOfWeek}, time=${cfg.governmentOrders.fetchHourUtc}:${cfg.governmentOrders.fetchMinuteUtc.toString().padStart(2, "0")} UTC`);
+    logger.info(`  commit-push:    ${cfg.featureFlags.enableCommitPush}`);
   logger.info(`  alerting:       ${cfg.featureFlags.enableAlerting}`);
   logger.info(`  aggregation:    ${cfg.featureFlags.enableAggregation}`);
   logger.info(`  analytics:      ${cfg.featureFlags.enableAnalytics}`);
@@ -91,7 +94,7 @@ export async function startScheduler(): Promise<void> {
               return { realm, ...aggResult };
             })
           );
-      
+  
           const aggFailures = aggResults.filter(r => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok));
           if (aggFailures.length > 0) {
             logger.warn(`Aggregation had ${aggFailures.length}/${cfg.simco.realms.length} failures`);
@@ -110,6 +113,14 @@ export async function startScheduler(): Promise<void> {
           const historyResult = await runAllHistorySync();
           if (!historyResult.ok) {
             logger.warn("History sync pipeline had failures");
+          }
+        }
+
+        // Government orders (once per week on Wednesday after 13:00 UTC)
+        if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg)) {
+          const govResult = await runAllGovernmentOrders();
+          if (!govResult.ok) {
+            logger.warn("Government orders pipeline had failures");
           }
         }
 
@@ -150,6 +161,26 @@ export async function startScheduler(): Promise<void> {
 function getCompressIntervalCycles(intervalDays: number, fetchMinutes: number): number {
   const cyclesPerDay = (24 * 60) / fetchMinutes;
   return Math.max(1, Math.round(intervalDays * cyclesPerDay));
+}
+
+function shouldFetchGovernmentOrders(cfg: ReturnType<typeof loadConfig>): boolean {
+  if (!cfg.governmentOrders.enableGovernmentOrders) return false;
+  
+  const now = new Date();
+  const currentDay = now.getUTCDay(); // 0=Sunday, 3=Wednesday
+  const currentHour = now.getUTCHours();
+  const currentMinute = now.getUTCMinutes();
+  
+  const targetDay = cfg.governmentOrders.fetchDayOfWeek;
+  const targetHour = cfg.governmentOrders.fetchHourUtc;
+  const targetMinute = cfg.governmentOrders.fetchMinuteUtc;
+  
+  // Check if it's the correct day and time has passed
+  if (currentDay !== targetDay) return false;
+  if (currentHour < targetHour) return false;
+  if (currentHour === targetHour && currentMinute < targetMinute) return false;
+  
+  return true;
 }
 
 function sleep(ms: number): Promise<void> {

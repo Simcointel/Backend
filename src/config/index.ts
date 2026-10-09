@@ -14,6 +14,7 @@ import type {
   MacroIndexConfig,
   MacroSettings,
   MacroHistoryConfig,
+  GovernmentOrdersConfig,
 } from "./schema.js";
 
 export type { SimcoIntelConfig } from "./schema.js";
@@ -98,44 +99,55 @@ export function loadConfig(): SimcoIntelConfig {
   };
 
   const macroHistoryDefaults: MacroHistoryConfig = {
-    enableHistoryIngestion: true,
-    enableBackfill: true,
-    backfillLookbackDays: 365,
-    historySyncIntervalMinutes: 60,
-    historyRetentionYears: 5,
-    archiveAfterMonths: 12,
-    historyPageSize: 50,
-    syncPageSize: 5,
-  };
+      enableHistoryIngestion: true,
+      enableBackfill: true,
+      backfillLookbackDays: 365,
+      historySyncIntervalMinutes: 60,
+      historyRetentionYears: 5,
+      archiveAfterMonths: 12,
+      historyPageSize: 50,
+      syncPageSize: 5,
+    };
 
-  const configPaths = findConfigPaths();
+    const governmentOrdersDefaults: GovernmentOrdersConfig = {
+      enableGovernmentOrders: false,
+      fetchDayOfWeek: 3, // Wednesday
+      fetchHourUtc: 13,
+      fetchMinuteUtc: 0,
+    };
+
+    const configPaths = findConfigPaths();
 
   let formulas = formulaDefaults;
-  let schedules = scheduleDefaults;
-  let featureFlags = featureFlagDefaults;
-  let macroIndexes: MacroIndexConfig = { categories: {} };
-  let macroSettings = macroSettingsDefaults;
-  let macroHistory: MacroHistoryConfig = macroHistoryDefaults;
+    let schedules = scheduleDefaults;
+    let featureFlags = featureFlagDefaults;
+    let macroIndexes: MacroIndexConfig = { categories: {} };
+    let macroSettings = macroSettingsDefaults;
+    let macroHistory: MacroHistoryConfig = macroHistoryDefaults;
+    let governmentOrders: GovernmentOrdersConfig = governmentOrdersDefaults;
 
-  for (const basePath of configPaths) {
-    const f = loadJson<FormulaConfig>(basePath, "formulas");
-    if (f) formulas = mergeWithDefaults(f, formulaDefaults);
+    for (const basePath of configPaths) {
+      const f = loadJson<FormulaConfig>(basePath, "formulas");
+      if (f) formulas = mergeWithDefaults(f, formulaDefaults);
 
-    const s = loadJson<ScheduleConfig>(basePath, "schedules");
-    if (s) schedules = mergeWithDefaults(s, scheduleDefaults);
+      const s = loadJson<ScheduleConfig>(basePath, "schedules");
+      if (s) schedules = mergeWithDefaults(s, scheduleDefaults);
 
-    const ff = loadJson<FeatureFlags>(basePath, "featureFlags");
-    if (ff) featureFlags = mergeWithDefaults(ff, featureFlagDefaults);
+      const ff = loadJson<FeatureFlags>(basePath, "featureFlags");
+      if (ff) featureFlags = mergeWithDefaults(ff, featureFlagDefaults);
 
-    const mi = loadJson<MacroIndexConfig>(basePath, "macroIndexes");
-    if (mi) macroIndexes = mi;
+      const mi = loadJson<MacroIndexConfig>(basePath, "macroIndexes");
+      if (mi) macroIndexes = mi;
 
-    const ms = loadJson<MacroSettings>(basePath, "macroSettings");
-    if (ms) macroSettings = mergeWithDefaults(ms, macroSettingsDefaults);
+      const ms = loadJson<MacroSettings>(basePath, "macroSettings");
+      if (ms) macroSettings = mergeWithDefaults(ms, macroSettingsDefaults);
 
-    const mh = loadJson<MacroHistoryConfig>(basePath, "macroHistory");
-    if (mh) macroHistory = mergeWithDefaults(mh, macroHistoryDefaults);
-  }
+      const mh = loadJson<MacroHistoryConfig>(basePath, "macroHistory");
+      if (mh) macroHistory = mergeWithDefaults(mh, macroHistoryDefaults);
+
+      const go = loadJson<GovernmentOrdersConfig>(basePath, "governmentOrders");
+      if (go) governmentOrders = mergeWithDefaults(go, governmentOrdersDefaults);
+    }
 
   const simco: SimcoConfig = {
     realms: parseRealmList(process.env.SIMCO_REALMS, [0, 1]),
@@ -158,9 +170,9 @@ export function loadConfig(): SimcoIntelConfig {
     webhookUrl: envString("ALERT_WEBHOOK_URL", ""),
   };
 
-  cached = { simco, dataRepo, logging, formulas, schedules, featureFlags, alerts, macroIndexes, macroSettings, macroHistory };
-  return cached;
-}
+  cached = { simco, dataRepo, logging, formulas, schedules, featureFlags, alerts, macroIndexes, macroSettings, macroHistory, governmentOrders };
+    return cached;
+  }
 
 export function reloadConfig(): SimcoIntelConfig {
   cached = null;

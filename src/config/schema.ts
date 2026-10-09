@@ -9,6 +9,7 @@ export interface SimcoIntelConfig {
   macroIndexes: MacroIndexConfig;
   macroSettings: MacroSettings;
   macroHistory: MacroHistoryConfig;
+  governmentOrders: GovernmentOrdersConfig;
 }
 
 export interface MacroIndexConfig {
@@ -46,6 +47,16 @@ export interface MacroHistoryConfig {
   archiveAfterMonths: number;
   historyPageSize: number;
   syncPageSize: number;
+}
+
+export interface GovernmentOrdersConfig {
+  enableGovernmentOrders: boolean;
+  // Day of week (0=Sunday, 3=Wednesday)
+  fetchDayOfWeek: number;
+  // Hour in UTC (0-23)
+  fetchHourUtc: number;
+  // Minute in UTC (0-59)
+  fetchMinuteUtc: number;
 }
 
 export interface SimcoConfig {
