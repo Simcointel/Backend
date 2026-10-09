@@ -46,24 +46,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 function buildRouter(): Router {
   const r = new Router();
 
-  r.get("/api/health", handleHealth);
-  r.get("/api/status", handleStatus);
+  r.get("/api/health", (req, res) => handleHealth(req, res));
+  r.get("/api/status", (req, res) => handleStatus(req, res));
 
-  r.get("/api/config", handleListConfig);
+  r.get("/api/config", (req, res) => handleListConfig(req, res));
   r.get("/api/config/:section", (req, res, params) => handleGetConfig(req, res, params.section));
   r.put("/api/config/:section", (req, res, params) => handleUpdateConfig(req, res, params.section));
 
-  r.post("/api/actions/:action", (req, res, params) => handleAction(req, res, params.action));
-  r.post("/api/actions/scheduler/:cmd", (req, res, params) => handleSchedulerControl(req, res, params.cmd));
+  r.post("/api/actions/:action", (req, res, params) => handleAction(req, res, params, undefined, params.action));
+  r.post("/api/actions/scheduler/:cmd", (req, res, params) => handleSchedulerControl(req, res, params, undefined, params.cmd));
 
-  r.get("/api/snapshots", handleListSnapshots);
+  r.get("/api/snapshots", (req, res) => handleListSnapshots(req, res));
   r.get("/api/snapshots/:realm", (req, res, params) => handleListRealmSnapshots(req, res, params.realm));
   r.get("/api/snapshots/:realm/:file", (req, res, params) => handleGetSnapshot(req, res, params.realm, params.file));
 
-  r.get("/api/archives", handleListArchives);
+  r.get("/api/archives", (req, res) => handleListArchives(req, res));
   r.get("/api/archives/:realm", (req, res, params) => handleListRealmArchives(req, res, params.realm));
 
-  r.get("/api/macro/history", handleMacroListHistory);
+  r.get("/api/macro/history", (req, res) => handleMacroListHistory(req, res));
   r.get("/api/macro/realm/:realm/history", (req, res, params) => handleMacroHistory(req, res, params.realm));
   r.get("/api/macro/indexes/:realm", (req, res, params) => handleMacroIndexes(req, res, params.realm));
   r.get("/api/macro/inflation/:realm", (req, res, params) => handleMacroInflation(req, res, params.realm));
@@ -72,7 +72,7 @@ function buildRouter(): Router {
   r.get("/api/macro/state/:realm", (req, res, params) => handleMacroState(req, res, params.realm));
 
   // Public API (rate limited)
-  r.get("/api/public/status", handlePublicStatus);
+  r.get("/api/public/status", (req, res) => handlePublicStatus(req, res));
   r.get("/api/public/macro", wrapRateLimited(handlePublicMacro));
   r.get("/api/public/indexes", wrapRateLimited(handlePublicIndexes));
   r.get("/api/public/inflation", wrapRateLimited(handlePublicInflation));
@@ -81,8 +81,8 @@ function buildRouter(): Router {
   r.get("/api/public/sync", wrapRateLimited(handleSync));
 
   // Cron (Vercel Cron Jobs)
-  r.post("/api/cron/cycle", handleCronCycle);
-  r.post("/api/cron/trigger-fetch", handleTriggerFetch);
+  r.post("/api/cron/cycle", (req, res) => handleCronCycle(req, res));
+  r.post("/api/cron/trigger-fetch", (req, res) => handleTriggerFetch(req, res));
 
   // Sync (for Data repo GitHub Action to pull)
   r.get("/api/public/sync", wrapRateLimited(handleSync));
@@ -244,32 +244,39 @@ export function createApp(): Express {
   }
 
   app.use(async (req: Request, res: Response, next: NextFunction) => {
-      requestLogger(req, res);
-      console.log(`[SERVER] ${req.method} ${req.url}`);
+        requestLogger(req, res);
+        console.log(`[SERVER] ${req.method} ${req.url}`);
 
-      const url = req.url || "/";
-      const baseUrl = getBaseUrl(req);
+        const url = req.url || "/";
+        const baseUrl = getBaseUrl(req);
 
-      try {
-        const match = router.match(req.method || "GET", url, baseUrl);
+        try {
+          const match = router.match(req.method || "GET", url, baseUrl);
 
-        if (!match) {
-          console.log(`[SERVER] No match for ${req.method} ${url}`);
-          return sendError(res, 404, `No route: ${req.method} ${new URL(url, baseUrl).pathname}`);
+          if (!match) {
+            console.log(`[SERVER] No match for ${req.method} ${url}`);
+            return sendError(res, 404, `No route: ${req.method} ${new URL(url, baseUrl).pathname}`);
+          }
+
+          console.log(`[SERVER] Matched route: ${req.method} ${url} -> handler: ${match.handler.name || 'anonymous'}`);
+          const body = req.body;
+          console.log(`[SERVER] Body:`, JSON.stringify(body));
+          console.log(`[SERVER] Calling handler...`);
+        
+          // Pass arguments based on handler type
+          let handlerResult;
+          if (match.action) {
+            handlerResult = await match.handler(req, res, match.params, body, match.action);
+          } else {
+            handlerResult = await match.handler(req, res, match.params, body);
+          }
+          console.log(`[SERVER] Handler completed, result:`, handlerResult);
+        } catch (err) {
+          console.error("[SERVER] Unhandled server error:", err);
+          logger.error("Unhandled server error", err instanceof Error ? err.message : String(err));
+          sendError(res, 500, "Internal server error");
         }
-
-        console.log(`[SERVER] Matched route: ${req.method} ${url} -> handler: ${match.handler.name || 'anonymous'}`);
-        const body = req.body;
-        console.log(`[SERVER] Body:`, JSON.stringify(body));
-        console.log(`[SERVER] Calling handler...`);
-        const handlerResult = await match.handler(req, res, match.params, body);
-        console.log(`[SERVER] Handler completed, result:`, handlerResult);
-      } catch (err) {
-        console.error("[SERVER] Unhandled server error:", err);
-        logger.error("Unhandled server error", err instanceof Error ? err.message : String(err));
-        sendError(res, 500, "Internal server error");
-      }
-    });
+      });
 
   return app;
 }

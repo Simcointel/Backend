@@ -9,6 +9,7 @@ export type RouteHandler = (
   res: Response,
   params: RouteParams,
   body?: unknown,
+  action?: string,
 ) => void | Promise<void>;
 
 interface Route {
@@ -32,21 +33,28 @@ export class Router {
     this.routes.push({ method: "PUT", pattern, handler });
   }
 
-  match(method: string, url: string, baseUrl: string = "http://localhost"): { handler: RouteHandler; params: RouteParams } | null {
-    const parsed = new URL(url, baseUrl);
-    const pathname = parsed.pathname;
+  match(method: string, url: string, baseUrl: string = "http://localhost"): { handler: RouteHandler; params: RouteParams; action?: string } | null {
+      const parsed = new URL(url, baseUrl);
+      const pathname = parsed.pathname;
 
-    for (const route of this.routes) {
-      if (route.method !== method) continue;
+      for (const route of this.routes) {
+        if (route.method !== method) continue;
 
-      const params = this.matchPath(route.pattern, pathname);
-      if (params !== null) {
-        return { handler: route.handler, params };
+        const params = this.matchPath(route.pattern, pathname);
+        if (params !== null) {
+          // For actions route, extract action string from params
+          let action: string | undefined;
+          if (route.pattern.startsWith("/api/actions/") && params.action) {
+            action = params.action;
+          } else if (route.pattern.startsWith("/api/actions/scheduler/") && params.cmd) {
+            action = params.cmd;
+          }
+          return { handler: route.handler, params, action };
+        }
       }
-    }
 
-    return null;
-  }
+      return null;
+    }
 
   private matchPath(pattern: string, pathname: string): RouteParams | null {
     const patternParts = pattern.split("/");
