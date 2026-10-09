@@ -14,7 +14,7 @@ export async function handleAction(req: Request, res: Response, params: RoutePar
     return sendError(res, 404, `Unknown action: ${action}`);
   }
 
-  const requestBody = req.body as Record<string, unknown> | undefined;
+  const requestBody = body;
   console.log(`[handleAction] body=`, JSON.stringify(requestBody));
 
   try {
