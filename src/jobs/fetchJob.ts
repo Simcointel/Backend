@@ -1,7 +1,7 @@
 import { loadConfig } from "../config/index.js";
 import { logger } from "../logging/logger.js";
 import { SimcoToolsClient, type Resource, type VwapEntry } from "../api/simcoTools.js";
-import { DataRepoWriter } from "../storage/dataRepoWriter.js";
+import { DataRepoWriter, getDataRepoWriter } from "../storage/dataRepoWriter.js";
 
 export interface FetchResult {
   ok: boolean;
@@ -39,7 +39,7 @@ export interface MarketSnapshot {
   vw: ShrunkVwap[];
 }
 
-function shrinkResources(resources: Resource[]): ShrunkResource[] {
+export function shrinkResources(resources: Resource[]): ShrunkResource[] {
   return resources.map((r) => ({
     i: r.id,
     n: r.name,
@@ -56,15 +56,15 @@ function shrinkResources(resources: Resource[]): ShrunkResource[] {
   }));
 }
 
-function shrinkVwaps(vwaps: VwapEntry[]): ShrunkVwap[] {
+export function shrinkVwaps(vwaps: VwapEntry[]): ShrunkVwap[] {
   return vwaps.map((v) => ({ i: v.resourceId, q: v.quality, v: v.vwap, d: v.datetime }));
 }
 
-async function sleep(ms: number): Promise<void> {
+export async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchWithRetry<T>(
+export async function fetchWithRetry<T>(
   label: string,
   fn: () => Promise<T>,
   retries: number,
@@ -94,8 +94,8 @@ export async function runFetchForRealm(realm: number): Promise<FetchResult> {
   const start = Date.now();
   const cfg = loadConfig();
 
-  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
-  const writer = new DataRepoWriter(cfg.dataRepo);
+  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl);
+  const writer = getDataRepoWriter(cfg.dataRepo);
 
   const retries = cfg.schedules.fetchRetryCount;
   const retryDelay = cfg.schedules.fetchRetryDelayMs;

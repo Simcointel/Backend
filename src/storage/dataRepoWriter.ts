@@ -227,24 +227,51 @@ export class DataRepoWriter implements IDataRepoWriter {
     message: string,
     files: Array<{ path: string; content: string }>,
   ): Promise<void> {
-    for (const file of files) {
-      const sha = await this.getFileSha(api, headers, branch, file.path);
-      const body: Record<string, unknown> = {
-        message,
-        content: Buffer.from(file.content, "utf-8").toString("base64"),
-        branch,
-      };
-      if (sha) body.sha = sha;
+    // Batch into chunks to avoid rate limits
+    const CHUNK_SIZE = 20;
+    for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+      const chunk = files.slice(i, i + CHUNK_SIZE);
+      await Promise.all(chunk.map(async (file) => {
+        const sha = await this.getFileSha(api, headers, branch, file.path);
+        const body: Record<string, unknown> = {
+          message,
+          content: Buffer.from(file.content, "utf-8").toString("base64"),
+          branch,
+        };
+        if (sha) body.sha = sha;
 
-      const res = await githubFetch(`${api}/contents/${encodeURIComponent(file.path)}`, {
-        method: "PUT",
-        headers,
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        logger.warn(`Contents API failed for ${file.path}: ${res.status} ${text}`);
+        const res = await githubFetch(`${api}/contents/${encodeURIComponent(file.path)}`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          logger.warn(`Contents API failed for ${file.path}: ${res.status} ${text}`);
+        }
+      }));
+      
+      // Small delay between chunks to avoid rate limits
+      if (i + CHUNK_SIZE < files.length) {
+        await new Promise(r => setTimeout(r, 500));
       }
     }
   }
+}
+
+// Singleton instance for reuse across jobs
+let dataRepoWriterInstance: DataRepoWriter | null = null;
+
+export function getDataRepoWriter(config?: DataRepoConfig): DataRepoWriter {
+  if (!dataRepoWriterInstance && config) {
+    dataRepoWriterInstance = new DataRepoWriter(config);
+  }
+  if (!dataRepoWriterInstance) {
+    throw new Error("DataRepoWriter not initialized — call with config first");
+  }
+  return dataRepoWriterInstance;
+}
+
+export function resetDataRepoWriter(): void {
+  dataRepoWriterInstance = null;
 }

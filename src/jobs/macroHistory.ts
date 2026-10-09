@@ -50,23 +50,23 @@ export interface MacroArchiveResult {
   error?: string;
 }
 
-function getDataRoot(): string {
+export function getDataRoot(): string {
   return resolve(loadConfig().dataRepo.path);
 }
 
-function statePath(realm: number): string {
+export function statePath(realm: number): string {
   return resolve(getDataRoot(), "state", "backfill", `realm-${realm}.json`);
 }
 
-function historyDir(realm: number): string {
+export function historyDir(realm: number): string {
   return resolve(getDataRoot(), "aggregates", "macro-history", `realm-${realm}`);
 }
 
-function yearFilePath(realm: number, year: number): string {
+export function yearFilePath(realm: number, year: number): string {
   return resolve(historyDir(realm), `${year}.json`);
 }
 
-function archiveDir(realm: number): string {
+export function archiveDir(realm: number): string {
   return resolve(getDataRoot(), "archives", "macro", `realm-${realm}`);
 }
 
@@ -85,31 +85,31 @@ export function loadState(realm: number): BackfillState {
   return JSON.parse(readFileSync(p, "utf-8")) as BackfillState;
 }
 
-function saveState(state: BackfillState): void {
+export function saveState(state: BackfillState): void {
   const p = statePath(state.r);
   const dir = resolve(p, "..");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(p, JSON.stringify(state, null, 2) + "\n", "utf-8");
 }
 
-function loadYearFile(realm: number, year: number): HistoryFile | null {
+export function loadYearFile(realm: number, year: number): HistoryFile | null {
   const p = yearFilePath(realm, year);
   if (!existsSync(p)) return null;
   return JSON.parse(readFileSync(p, "utf-8")) as HistoryFile;
 }
 
-function ensureDir(p: string): void {
+export function ensureDir(p: string): void {
   const dir = resolve(p, "..");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
-function getYearSet(realm: number, year: number): Set<string> {
+export function getYearSet(realm: number, year: number): Set<string> {
   const file = loadYearFile(realm, year);
   if (!file) return new Set();
   return new Set(file.e.map((e) => e.d));
 }
 
-function appendToYearFile(realm: number, year: number, entries: HistoryEntry[]): void {
+export function appendToYearFile(realm: number, year: number, entries: HistoryEntry[]): void {
   const existing = loadYearFile(realm, year);
   const merged = existing ? existing.e.slice() : [];
 
@@ -132,7 +132,7 @@ function appendToYearFile(realm: number, year: number, entries: HistoryEntry[]):
 
 export async function runBackfill(realm: number): Promise<HistorySyncResult> {
   const cfg = loadConfig();
-  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
+  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl);
   const state = loadState(realm);
 
   const cutoff = new Date();
@@ -239,7 +239,7 @@ export async function runBackfill(realm: number): Promise<HistorySyncResult> {
 
 export async function runHistorySync(realm: number): Promise<HistorySyncResult> {
   const cfg = loadConfig();
-  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
+  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl);
   const state = loadState(realm);
 
   if (!state.backfillComplete) {

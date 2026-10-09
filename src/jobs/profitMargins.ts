@@ -4,7 +4,7 @@ import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
 import { SimcoToolsClient, type Building } from "../api/simcoTools.js";
 import { cache } from "../cache.js";
-import { DataRepoWriter } from "../storage/dataRepoWriter.js";
+import { DataRepoWriter, getDataRepoWriter } from "../storage/dataRepoWriter.js";
 import type { MarketSnapshot } from "./fetchJob.js";
 
 export interface ProfitEntry {
@@ -36,6 +36,10 @@ export interface ProfitMarginsReport {
 }
 
 function findLatestSnapshot(dataRepoPath: string, realm: number): string | null {
+  const cacheKey = `latest-snapshot:${realm}`;
+  const cached = cache.get<string>(cacheKey);
+  if (cached) return cached;
+
   const dir = resolve(dataRepoPath, "snapshots", "market", `realm-${realm}`);
   if (!existsSync(dir)) {
     logger.warn(`[realm ${realm}] Snapshot directory not found: ${dir} (dataRepo.path=${dataRepoPath})`);
@@ -52,10 +56,12 @@ function findLatestSnapshot(dataRepoPath: string, realm: number): string | null 
     return null;
   }
 
-  return join(dir, files[0]);
+  const result = join(dir, files[0]);
+  cache.set(cacheKey, result, 60 * 1000); // 1 minute TTL
+  return result;
 }
 
-function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph: number; w: number; tr: number; inputs: Map<number, number>; ir: boolean; sm: number; pa: number }> {
+export function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph: number; w: number; tr: number; inputs: Map<number, number>; ir: boolean; sm: number; pa: number }> {
   const map = new Map();
   for (const r of snapshot.rc) {
     map.set(r.i, {
@@ -72,7 +78,7 @@ function buildResourceMap(snapshot: MarketSnapshot): Map<number, { n: string; ph
   return map;
 }
 
-function buildVwapMap(snapshot: MarketSnapshot): Map<number, Map<number, number>> {
+export function buildVwapMap(snapshot: MarketSnapshot): Map<number, Map<number, number>> {
   const map = new Map<number, Map<number, number>>();
   for (const v of snapshot.vw) {
     if (!map.has(v.i)) map.set(v.i, new Map());
@@ -93,7 +99,7 @@ function findMarginsFiles(dataRepoPath: string, realm: number, limit: number): s
     .map((f) => join(dir, f));
 }
 
-function computeDeltas(current: ProfitEntry[], previous: ProfitEntry[]): ProfitEntry[] {
+export function computeDeltas(current: ProfitEntry[], previous: ProfitEntry[]): ProfitEntry[] {
   const prevMap = new Map<number, ProfitEntry>();
   for (const p of previous) prevMap.set(p.i, p);
 
@@ -116,12 +122,12 @@ function computeDeltas(current: ProfitEntry[], previous: ProfitEntry[]): ProfitE
   });
 }
 
-function findPreviousMarginsFile(dataRepoPath: string, realm: number): string | null {
+export function findPreviousMarginsFile(dataRepoPath: string, realm: number): string | null {
   const files = findMarginsFiles(dataRepoPath, realm, 1);
   return files.length > 0 ? files[0] : null;
 }
 
-function computeProjections(current: ProfitEntry[], prevFiles: string[]): ProfitEntry[] {
+export function computeProjections(current: ProfitEntry[], prevFiles: string[]): ProfitEntry[] {
   const marginHistory = new Map<number, number[]>();
   for (const f of prevFiles) {
     try {
@@ -165,7 +171,7 @@ function computeProjections(current: ProfitEntry[], prevFiles: string[]): Profit
   });
 }
 
-function getBestVwap(resourceId: number, vwapMap: Map<number, Map<number, number>>): number | undefined {
+export function getBestVwap(resourceId: number, vwapMap: Map<number, Map<number, number>>): number | undefined {
   const quals = vwapMap.get(resourceId);
   if (!quals || quals.size === 0) return undefined;
   if (quals.has(0)) return quals.get(0);
@@ -181,7 +187,7 @@ export async function computeProfitMargins(realm: number): Promise<ProfitMargins
   const totalLevels = cfg.macroSettings.totalBuildingLevels || 1;
   const adminOverheadPct = Math.max(0, (totalLevels - 1) * 100 / 170) / 100;
 
-  const client = new SimcoToolsClient(realm, cfg.simco.apiBaseUrl);
+  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl);
   const buildingCacheKey = `buildings-${realm}`;
   let buildings = cache.get<Building[]>(buildingCacheKey);
 
@@ -328,7 +334,7 @@ export async function runProfitMargins(realm: number): Promise<{ ok: boolean; re
 
   try {
     const cfg = loadConfig();
-    const writer = new DataRepoWriter({ path: cfg.dataRepo.path, githubToken: "", owner: "", repo: "", branch: "main" });
+    const writer = getDataRepoWriter(cfg.dataRepo);
     const timestamp = new Date().toISOString().replace(/:/g, "-");
     const subDir = `aggregates/profit-margins/realm-${realm}`;
     await writer.writeSnapshot(

@@ -26,6 +26,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run build
+      - run: npm test
       - run: node -e "require('./dist/config/index.js')" 2>&1 || echo "Config load test (expected without .env)"
 
   integrity:

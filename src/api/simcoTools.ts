@@ -84,6 +84,9 @@ export interface CompanyBuilding {
   [key: string]: unknown;
 }
 
+// Client pool keyed by realm
+const clientPool = new Map<number, SimcoToolsClient>();
+
 export class SimcoToolsClient {
   private baseUrl: string;
   private lastRequestTime = 0;
@@ -93,6 +96,18 @@ export class SimcoToolsClient {
     const base = apiBaseUrl ? apiBaseUrl.replace(/\/+$/, "") : "https://api.simcotools.com/v1/realms";
     this.baseUrl = `${base}/${realm}`;
     this.minInterval = minInterval;
+  }
+
+  static getOrCreate(realm: number, apiBaseUrl?: string, minInterval = 600): SimcoToolsClient {
+    const existing = clientPool.get(realm);
+    if (existing) return existing;
+    const client = new SimcoToolsClient(realm, apiBaseUrl, minInterval);
+    clientPool.set(realm, client);
+    return client;
+  }
+
+  static clearPool(): void {
+    clientPool.clear();
   }
 
   private async rateLimit(): Promise<void> {

@@ -2,7 +2,7 @@ import { writeFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 
 import { resolve } from "path";
 import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
-import { DataRepoWriter } from "../storage/dataRepoWriter.js";
+import { DataRepoWriter, getDataRepoWriter } from "../storage/dataRepoWriter.js";
 import { getDataRoot } from "./intelligenceUtils.js";
 import {
   loadLatestMacroData,
@@ -132,14 +132,14 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
   result.durationMs = Date.now() - start;
 
   // Push to Git if enabled
-  if (cfg.featureFlags.enableCommitPush) {
-    try {
-      const writer = new DataRepoWriter(cfg.dataRepo);
-      await writer.commitAndPush(`public export refresh`);
-    } catch (err) {
-      result.errors.push(`git-push: ${err}`);
+    if (cfg.featureFlags.enableCommitPush) {
+      try {
+        const writer = getDataRepoWriter(cfg.dataRepo);
+        await writer.commitAndPush(`public export refresh`);
+      } catch (err) {
+        result.errors.push(`git-push: ${err}`);
+      }
     }
-  }
 
   logger.info(`Public export pipeline: ${result.files.length} files in ${result.durationMs}ms`);
   return result;

@@ -8,6 +8,7 @@ import { recordFetchResult, getFailureStatus } from "./failureTracker.js";
 import { emit } from "../events/eventBus.js";
 import { runPublicExportPipeline } from "./publicExportPipeline.js";
 import { runAllProfitMargins } from "./profitMargins.js";
+import { runAllHistorySync } from "./macroHistory.js";
 
 let shuttingDown = false;
 let schedulerRunning = false;
@@ -78,27 +79,39 @@ export async function startScheduler(): Promise<void> {
     }
 
     if (cfg.featureFlags.enableCommitPush && process.env.SYNC_SECRET) {
-      logger.info("Sync: data pushed to Data repo via external GitHub Action pull");
-    }
+          logger.info("Sync: data pushed to Data repo via external GitHub Action pull");
+        }
 
-    for (const realm of cfg.simco.realms) {
-      if (cfg.featureFlags.enableAggregation) {
-        const aggResult = await runAggregation(cfg.dataRepo.path, realm);
-        if (!aggResult.ok) logger.warn(`[realm ${realm}] Aggregation skipped`, aggResult.error ?? "");
-      }
-    }
+        // Parallelize realm processing where possible
+        if (cfg.featureFlags.enableAggregation) {
+          const aggResults = await Promise.allSettled(
+            cfg.simco.realms.map(async (realm) => {
+              const aggResult = await runAggregation(cfg.dataRepo.path, realm);
+              if (!aggResult.ok) logger.warn(`[realm ${realm}] Aggregation skipped`, aggResult.error ?? "");
+              return { realm, ...aggResult };
+            })
+          );
+      
+          const aggFailures = aggResults.filter(r => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok));
+          if (aggFailures.length > 0) {
+            logger.warn(`Aggregation had ${aggFailures.length}/${cfg.simco.realms.length} failures`);
+          }
+        }
 
-    if (cfg.macroSettings.enableProfitMargins) {
-      const profitResult = await runAllProfitMargins();
-      if (!profitResult.ok) {
-        logger.warn("Profit margins pipeline had failures");
-      }
-    }
+        if (cfg.macroSettings.enableProfitMargins) {
+          const profitResult = await runAllProfitMargins();
+          if (!profitResult.ok) {
+            logger.warn("Profit margins pipeline had failures");
+          }
+        }
 
-    if (cfg.featureFlags.enableRetentionCleanup) {
-      const cleanupResult = retentionCleanup(cfg.dataRepo.path, cfg.schedules.snapshotRetentionDays);
-      if (!cleanupResult.ok) logger.warn("Cleanup reported error", cleanupResult.error ?? "");
-    }
+        // Run history sync in parallel
+        if (cfg.macroHistory.enableHistoryIngestion) {
+          const historyResult = await runAllHistorySync();
+          if (!historyResult.ok) {
+            logger.warn("History sync pipeline had failures");
+          }
+        }
 
 
 

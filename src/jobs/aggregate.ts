@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
 import { logger } from "../logging/logger.js";
-import { DataRepoWriter } from "../storage/dataRepoWriter.js";
+import { DataRepoWriter, getDataRepoWriter } from "../storage/dataRepoWriter.js";
+import { cache } from "../cache.js";
 import type { MarketSnapshot } from "./fetchJob.js";
 
 export interface AggregationResult {
@@ -22,6 +23,10 @@ interface CompactSummary {
 }
 
 function findLatestSnapshot(dataRepoPath: string, realm: number): string | null {
+  const cacheKey = `latest-snapshot:${realm}`;
+  const cached = cache.get<string>(cacheKey);
+  if (cached) return cached;
+
   const dir = resolve(dataRepoPath, "snapshots", "market", `realm-${realm}`);
   if (!existsSync(dir)) return null;
 
@@ -30,7 +35,11 @@ function findLatestSnapshot(dataRepoPath: string, realm: number): string | null 
     .sort()
     .reverse();
 
-  return files.length > 0 ? join(dir, files[0]) : null;
+  if (files.length === 0) return null;
+
+  const result = join(dir, files[0]);
+  cache.set(cacheKey, result, 60 * 1000); // 1 minute TTL
+  return result;
 }
 
 export async function runAggregation(dataRepoPath: string, realm: number): Promise<AggregationResult> {
@@ -66,7 +75,7 @@ export async function runAggregation(dataRepoPath: string, realm: number): Promi
     ss: snapshotPath,
   };
 
-  const writer = new DataRepoWriter({ path: dataRepoPath, githubToken: "", owner: "", repo: "", branch: "main" });
+  const writer = getDataRepoWriter({ path: dataRepoPath, githubToken: "", owner: "", repo: "", branch: "main" });
   const subDir = `aggregates/market/realm-${realm}`;
 
   try {
