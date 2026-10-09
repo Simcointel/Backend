@@ -90,14 +90,11 @@ function buildRouter(): Router {
       sendSuccess(res, { received: true, body });
     });
 
-    // Sync (for Data repo GitHub Action to pull)
-    r.get("/api/public/sync", wrapRateLimited(handleSync));
-
     return r;
 }
 
-function wrapRateLimited(handler: (req: Request, res: Response, params: Record<string, string>, body: unknown, query: URLSearchParams) => void) {
-  return async (req: Request, res: Response, params: Record<string, string>, body: unknown) => {
+function wrapRateLimited(handler: (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown, query: URLSearchParams) => void) {
+  return async (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown) => {
     if (!rateLimitMiddleware(req, res)) return;
     const url = req.url || "/";
     const query = new URLSearchParams(url.includes("?") ? url.split("?")[1] : "");
@@ -165,7 +162,11 @@ function serveStaticFiles(app: Express, staticDir: string): void {
       return next();
     }
     const filePath = join(staticDir, req.path);
-    
+    const resolvedFilePath = resolve(filePath);
+    if (!resolve(resolvedFilePath).startsWith(resolve(staticDir) + sep)) {
+      return res.status(403).send("Forbidden");
+    }
+
     if (existsSync(filePath) && !filePath.endsWith("/")) {
       res.setHeader("Content-Type", getMimeType(filePath));
       res.sendFile(filePath);

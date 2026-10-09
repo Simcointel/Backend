@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { IncomingMessage, ServerResponse } from "http";
 import { sendSuccess, sendError } from "../middleware.js";
 import { executeAction } from "../../admin/index.js";
 import { loadConfig } from "../../config/index.js";
@@ -7,7 +7,7 @@ import { RouteParams } from "../../api/router.js";
 
 const VALID_ACTIONS = ["fetch", "aggregate", "analytics", "cleanup", "compress", "status", "reload-config", "get-config", "update-config", "set-log-level", "government-orders", "public-export"];
 
-export async function handleAction(req: Request, res: Response, params: RouteParams, body: Record<string, unknown> | undefined, action: string): Promise<void> {
+export async function handleAction(req: IncomingMessage, res: ServerResponse, params: RouteParams, body: Record<string, unknown> | undefined, action: string): Promise<void> {
   console.log(`[handleAction] START action=${action}`);
   if (!VALID_ACTIONS.includes(action)) {
     console.log(`[handleAction] Invalid action: ${action}`);
@@ -37,7 +37,7 @@ export async function handleAction(req: Request, res: Response, params: RoutePar
   }
 }
 
-export async function handleSchedulerControl(req: Request, res: Response, params: RouteParams, body: Record<string, unknown> | undefined, cmd: string): Promise<void> {
+export async function handleSchedulerControl(req: IncomingMessage, res: ServerResponse, params: RouteParams, body: Record<string, unknown> | undefined, cmd: string): Promise<void> {
   console.log(`[handleSchedulerControl] cmd=${cmd}`);
   switch (cmd) {
     case "start":

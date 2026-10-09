@@ -1,12 +1,12 @@
-import { Request, Response } from "express";
+import { IncomingMessage, ServerResponse } from "http";
 
 export interface RouteParams {
   [key: string]: string;
 }
 
 export type RouteHandler = (
-  req: Request,
-  res: Response,
+  req: IncomingMessage,
+  res: ServerResponse,
   params: RouteParams,
   body?: unknown,
   action?: string,
@@ -31,6 +31,18 @@ export class Router {
 
   put(pattern: string, handler: RouteHandler): void {
     this.routes.push({ method: "PUT", pattern, handler });
+  }
+
+  delete(pattern: string, handler: RouteHandler): void {
+    this.routes.push({ method: "DELETE", pattern, handler });
+  }
+
+  patch(pattern: string, handler: RouteHandler): void {
+    this.routes.push({ method: "PATCH", pattern, handler });
+  }
+
+  options(pattern: string, handler: RouteHandler): void {
+    this.routes.push({ method: "OPTIONS", pattern, handler });
   }
 
   match(method: string, url: string, baseUrl: string = "http://localhost"): { handler: RouteHandler; params: RouteParams; action?: string } | null {

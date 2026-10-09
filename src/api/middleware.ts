@@ -52,9 +52,17 @@ export function parseJsonBody(req: IncomingMessage, timeoutMs = 5000): Promise<u
   });
 }
 
+const originalEndMap = new WeakMap<ServerResponse, ServerResponse["end"]>();
+
 export function requestLogger(req: IncomingMessage, res: ServerResponse): void {
   const start = Date.now();
+
+  // Avoid double-wrapping if middleware runs twice on the same response
+  if (originalEndMap.has(res)) return;
+
   const originalEnd = res.end.bind(res);
+  originalEndMap.set(res, originalEnd);
+
   res.end = ((...args: Parameters<ServerResponse["end"]>) => {
     const duration = Date.now() - start;
     logger.info(`${req.method} ${req.url} → ${res.statusCode} (${duration}ms)`);

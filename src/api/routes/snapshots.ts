@@ -4,6 +4,18 @@ import { resolve, join } from "path";
 import { sendSuccess, sendError } from "../middleware.js";
 import { loadConfig } from "../../config/index.js";
 
+const VALID_SNAPSHOT_TYPES = new Set([
+  "market",
+  "market-summary",
+  "profit-margins",
+  "macro-history",
+  "government-orders",
+]);
+
+function isValidSnapshotType(type: string): boolean {
+  return VALID_SNAPSHOT_TYPES.has(type);
+}
+
 function getSnapshotDir(dataPath: string, realm: string, type: string): string {
   return resolve(dataPath, "snapshots", type, `realm-${realm}`);
 }
@@ -39,7 +51,11 @@ export async function handleListRealmSnapshots(req: IncomingMessage, res: Server
   // Get type from query params (default: market)
   const url = new URL(req.url || "/", "http://localhost");
   const type = url.searchParams.get("type") || "market";
-  
+
+  if (!isValidSnapshotType(type)) {
+    return sendError(res, 400, `Invalid snapshot type: ${type}`);
+  }
+
   const dir = getSnapshotDir(dataPath, realm, type);
 
   if (!existsSync(dir)) {
@@ -72,7 +88,11 @@ export async function handleGetSnapshot(req: IncomingMessage, res: ServerRespons
   // Get type from query params (default: market)
   const url = new URL(req.url || "/", "http://localhost");
   const type = url.searchParams.get("type") || "market";
-  
+
+  if (!isValidSnapshotType(type)) {
+    return sendError(res, 400, `Invalid snapshot type: ${type}`);
+  }
+
   const filePath = resolve(dataPath, "snapshots", type, `realm-${realm}`, file);
 
   if (!filePath.startsWith(resolve(dataPath, "snapshots", type))) {
