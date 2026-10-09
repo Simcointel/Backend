@@ -183,8 +183,17 @@ class AdminDashboard {
         getApiBaseUrl() {
                     // Check for Vercel URL in meta tag
                     const metaUrl = document.querySelector('meta[name="api-base-url"]')?.content;
+            
+                    // On Vercel (same domain for admin + API), ALWAYS use relative paths
+                    // The meta tag may contain a different Vercel deployment URL than the current alias
+                    if (window.location.hostname.includes('vercel.app') || 
+                        window.location.hostname.includes('vercel') ||
+                        window.location.hostname.includes('.dev')) {
+                        return '';
+                    }
+            
+                    // For non-Vercel: only use meta URL if it matches current origin
                     if (metaUrl && metaUrl.length > 0) {
-                        // Only use meta URL if it matches current origin (same deployment)
                         try {
                             const metaOrigin = new URL(metaUrl).origin;
                             const currentOrigin = window.location.origin;
@@ -195,14 +204,7 @@ class AdminDashboard {
                             // Invalid URL, ignore
                         }
                     }
-
-                    // On Vercel (same domain for admin + API), use relative paths
-                    if (window.location.hostname.includes('vercel.app') || 
-                        window.location.hostname.includes('vercel') ||
-                        window.location.hostname.includes('.dev')) {
-                        return '';
-                    }
-
+            
                     // Default to relative path (same origin)
                     return '';
                 }
