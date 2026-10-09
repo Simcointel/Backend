@@ -161,7 +161,9 @@ class AdminDashboard {
     async api(endpoint, options = {}) {
             // Auto-detect Vercel URL or use relative path
             const baseUrl = this.getApiBaseUrl();
-            const url = `${baseUrl}${endpoint}`;
+            // Ensure /api prefix — all server routes live under /api/
+            const apiEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
+            const url = `${baseUrl}${apiEndpoint}`;
             const opts = {
                 headers: {
                     'Content-Type': 'application/json',
