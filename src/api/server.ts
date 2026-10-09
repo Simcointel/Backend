@@ -81,13 +81,19 @@ function buildRouter(): Router {
   r.get("/api/public/sync", wrapRateLimited(handleSync));
 
   // Cron (Vercel Cron Jobs)
-  r.post("/api/cron/cycle", (req, res) => handleCronCycle(req, res));
-  r.post("/api/cron/trigger-fetch", (req, res) => handleTriggerFetch(req, res));
+    r.post("/api/cron/cycle", (req, res) => handleCronCycle(req, res));
+    r.post("/api/cron/trigger-fetch", (req, res) => handleTriggerFetch(req, res));
 
-  // Sync (for Data repo GitHub Action to pull)
-  r.get("/api/public/sync", wrapRateLimited(handleSync));
+    // Debug: test POST route
+    r.post("/api/test-post", (req, res, params, body) => {
+      console.log("[TEST-POST] Received POST to /api/test-post");
+      sendSuccess(res, { received: true, body });
+    });
 
-  return r;
+    // Sync (for Data repo GitHub Action to pull)
+    r.get("/api/public/sync", wrapRateLimited(handleSync));
+
+    return r;
 }
 
 function wrapRateLimited(handler: (req: Request, res: Response, params: Record<string, string>, body: unknown, query: URLSearchParams) => void) {
