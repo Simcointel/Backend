@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="api-base-url" content="">
+    <title>SimCo Intel - Admin Dashboard</title>
+    <link rel="stylesheet" href="/admin/css/admin.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                    <span>SimCo Intel</span>
+                </div>
+                <span class="version">Admin</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#dashboard" class="nav-item active" data-tab="dashboard">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#actions" class="nav-item" data-tab="actions">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                    <span>Actions</span>
+                </a>
+                <a href="#config" class="nav-item" data-tab="config">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <span>Configuration</span>
+                </a>
+                <a href="#scheduler" class="nav-item" data-tab="scheduler">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span>Scheduler</span>
+                </a>
+                <a href="#health" class="nav-item" data-tab="health">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    <span>Health</span>
+                </a>
+                <a href="#snapshots" class="nav-item" data-tab="snapshots">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="9" cy="9" r="2"/>
+                        <path d="M21 15l-5-5L5 17"/>
+                    </svg>
+                    <span>Snapshots</span>
+                </a>
+                <a href="#logs" class="nav-item" data-tab="logs">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                    </svg>
+                    <span>Logs</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="server-status">
+                    <span class="status-indicator" id="serverStatus"></span>
+                    <span>Server Online</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <line x1="3" y1="12" x2="21" y2="12"/>
+                        <line x1="3" y1="18" x2="21" y2="18"/>
+                    </svg>
+                </button>
+                <div class="search-box">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16" y2="16"/>
+                    </svg>
+                    <input type="text" placeholder="Search actions, config..." id="searchInput">
+                </div>
+                <div class="user-menu">
+                    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                        <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"/>
+                            <line x1="12" y1="1" x2="12" y2="3"/>
+                            <line x1="12" y1="21" x2="12" y2="23"/>
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                            <line x1="1" y1="12" x2="3" y2="12"/>
+                            <line x1="21" y1="12" x2="23" y2="12"/>
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                        </svg>
+                        <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                        </svg>
+                    </button>
+                    <div class="user-info">
+                        <span>Admin</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- Dashboard Tab -->
+                <section id="dashboard-tab" class="tab-panel active">
+                    <div class="page-header">
+                        <h1>Dashboard</h1>
+                        <p>System overview and key metrics</p>
+                    </div>
+                    <div class="metrics-grid" id="metricsGrid">
+                        <div class="metric-card">
+                            <div class="metric-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg></div>
+                            <div class="metric-info">
+                                <span class="metric-value" id="totalRealms">-</span>
+                                <span class="metric-label">Realms</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+                            <div class="metric-info">
+                                <span class="metric-value" id="totalResources">-</span>
+                                <span class="metric-label">Resources</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+                            <div class="metric-info">
+                                <span class="metric-value" id="lastFetch">-</span>
+                                <span class="metric-label">Last Fetch</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                            <div class="metric-info">
+                                <span class="metric-value" id="schedulerStatus">Stopped</span>
+                                <span class="metric-label">Scheduler</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="charts-row">
+                        <div class="chart-card">
+                            <h3>Fetch Performance</h3>
+                            <canvas id="fetchChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Resources by Realm</h3>
+                            <canvas id="realmChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="recent-activity">
+                        <h3>Recent Activity</h3>
+                        <div class="activity-list" id="activityList"></div>
+                    </div>
+                </section>
+
+                <!-- Actions Tab -->
+                <section id="actions-tab" class="tab-panel">
+                    <div class="page-header">
+                        <h1>Actions</h1>
+                        <p>Trigger manual operations and maintenance tasks</p>
+                    </div>
+                    <div class="actions-grid" id="actionsGrid">
+                        <div class="action-card" data-action="fetch">
+                            <div class="action-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg></div>
+                            <div class="action-info">
+                                <h3>Market Fetch</h3>
+                                <p>Fetch latest market data from all realms</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="runAction('fetch')">Run</button>
+                        </div>
+                        <div class="action-card" data-action="aggregate">
+                            <div class="action-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+                            <div class="action-info">
+                                <h3>Aggregate</h3>
+                                <p>Build market summaries from snapshots</p>
+                            </div>
+                            <div class="action-params">
+                                <select id="aggregateRealm" class="param-select">
+                                    <option value="">All Realms</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" onclick="runAction('aggregate')">Run</button>
+                        </div>
+                        <div class="action-card" data-action="cleanup">
+                            <div class="action-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div>
+                            <div class="action-info">
+                                <h3>Cleanup</h3>
+                                <p>Remove old snapshots beyond retention</p>
+                            </div>
+                            <div class="action-params">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="cleanupDryRun">
+                                    <span>Dry run only</span>
+                                </label>
+                            </div>
+                            <button class="btn btn-primary" onclick="runAction('cleanup')">Run</button>
+                        </div>
+                        <div class="action-card" data-action="compress">
+                            <div class="action-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                            <div class="action-info">
+                                <h3>Compress</h3>
+                                <p>Archive old snapshots into monthly files</p>
+                            </div>
+                            <div class="action-params">
+                                <select id="compressRealm" class="param-select">
+                                    <option value="">All Realms</option>
+                                </select>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="compressDryRun">
+                                    <span>Dry run only</span>
+                                </label>
+                            </div>
+                            <button class="btn btn-primary" onclick="runAction('compress')">Run</button>
+                        </div>
+                        <div class="action-card" data-action="government-orders">
+                            <div class="action-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></div>
+                            <div class="action-info">
+                                <h3>Government Orders</h3>
+                                <p>Fetch weekly government orders (Wed 13:00 UTC)</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="runAction('government-orders')">Run</button>
+                        </div>
+                        <div class="action-card" data-action="status">
+                            <div class="action-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+                            <div class="action-info">
+                                <h3>System Status</h3>
+                                <p>Full health check and diagnostics</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="runAction('status')">Run</button>
+                        </div>
+                        <div class="action-card" data-action="reload-config">
+                            <div class="action-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div>
+                            <div class="action-info">
+                                <h3>Reload Config</h3>
+                                <p>Hot-reload configuration files</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="runAction('reload-config')">Run</button>
+                        </div>
+                        <div class="action-card" data-action="export">
+                            <div class="action-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg></div>
+                            <div class="action-info">
+                                <h3>Public Export</h3>
+                                <p>Generate public datasets for frontend</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="runAction('public-export')">Run</button>
+                        </div>
+                    </div>
+                    <div class="action-results" id="actionResults"></div>
+                </section>
+
+                <!-- Configuration Tab -->
+                <section id="config-tab" class="tab-panel">
+                    <div class="page-header">
+                        <h1>Configuration</h1>
+                        <p>Manage system configuration sections</p>
+                    </div>
+                    <div class="config-sections" id="configSections"></div>
+                </section>
+
+                <!-- Scheduler Tab -->
+                <section id="scheduler-tab" class="tab-panel">
+                    <div class="page-header">
+                        <h1>Scheduler</h1>
+                        <p>Monitor and control the background scheduler</p>
+                    </div>
+                    <div class="scheduler-panel">
+                        <div class="scheduler-status">
+                            <div class="status-card">
+                                <h3>Scheduler Status</h3>
+                                <div class="status-value" id="schedulerState">Unknown</div>
+                                <div class="status-meta" id="schedulerMeta"></div>
+                            </div>
+                            <div class="status-card">
+                                <h3>Current Cycle</h3>
+                                <div class="status-value" id="currentCycle">0</div>
+                                <div class="status-meta">Since startup</div>
+                            </div>
+                            <div class="status-card">
+                                <h3>Uptime</h3>
+                                <div class="status-value" id="uptime">0s</div>
+                                <div class="status-meta">Total running time</div>
+                            </div>
+                            <div class="status-card">
+                                <h3>Next Run</h3>
+                                <div class="status-value" id="nextRun">-</div>
+                                <div class="status-meta">Next scheduled fetch</div>
+                            </div>
+                        </div>
+                        <div class="scheduler-controls">
+                            <button class="btn btn-primary" onclick="controlScheduler('start')" id="startBtn">Start</button>
+                            <button class="btn btn-secondary" onclick="controlScheduler('stop')" id="stopBtn">Stop</button>
+                            <button class="btn btn-outline" onclick="controlScheduler('status')">Refresh</button>
+                        </div>
+                        <div class="scheduler-config">
+                            <h3>Schedule Configuration</h3>
+                            <div class="config-form" id="schedulerConfigForm"></div>
+                        </div>
+                        <div class="recent-cycles">
+                            <h3>Recent Cycles</h3>
+                            <div class="cycle-list" id="cycleList"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Health Tab -->
+                <section id="health-tab" class="tab-panel">
+                    <div class="page-header">
+                        <h1>System Health</h1>
+                        <p>Comprehensive health monitoring and diagnostics</p>
+                    </div>
+                    <div class="health-grid" id="healthGrid"></div>
+                    <button class="btn btn-primary" onclick="runAction('status')">Run Full Health Check</button>
+                </section>
+
+                <!-- Snapshots Tab -->
+                <section id="snapshots-tab" class="tab-panel">
+                    <div class="page-header">
+                        <h1>Snapshots</h1>
+                        <p>Browse and manage data snapshots</p>
+                    </div>
+                    <div class="snapshots-toolbar">
+                        <select id="snapshotRealm" class="param-select">
+                            <option value="">All Realms</option>
+                        </select>
+                        <select id="snapshotType" class="param-select">
+                            <option value="market">Market Snapshots</option>
+                            <option value="market-summary">Market Summaries</option>
+                            <option value="profit-margins">Profit Margins</option>
+                            <option value="macro-history">Macro History</option>
+                            <option value="government-orders">Government Orders</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="loadSnapshots()">Refresh</button>
+                    </div>
+                    <div class="snapshots-list" id="snapshotsList"></div>
+                </section>
+
+                <!-- Logs Tab -->
+                <section id="logs-tab" class="tab-panel">
+                    <div class="page-header">
+                        <h1>Logs</h1>
+                        <p>System logs and activity</p>
+                    </div>
+                    <div class="logs-toolbar">
+                        <select id="logLevel" class="param-select">
+                            <option value="all">All Levels</option>
+                            <option value="info">Info</option>
+                            <option value="warn">Warning</option>
+                            <option value="error">Error</option>
+                        </select>
+                        <input type="text" placeholder="Filter..." id="logFilter" class="param-input">
+                        <button class="btn btn-primary" onclick="loadLogs()">Refresh</button>
+                        <button class="btn btn-outline" onclick="clearLogs()">Clear</button>
+                    </div>
+                    <div class="logs-container" id="logsContainer"></div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="/admin/js/admin.js"></script>
+</body>
+</html>

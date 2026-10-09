@@ -1,6 +1,8 @@
 import { setDefaultResultOrder } from "dns";
 import { createServer, IncomingMessage, ServerResponse } from "http";
-import { existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync, readFileSync } from "fs";
+import { join, resolve, extname, dirname } from "path";
+import { fileURLToPath } from "url";
 import express, { Express } from "express";
 import { logger } from "../logging/logger.js";
 
@@ -39,6 +41,8 @@ import { startScheduler } from "../jobs/scheduler.js";
 import { reloadConfig } from "../config/index.js";
 import { getBaseUrl } from "./urlHelper.js";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 function buildRouter(): Router {
   const r = new Router();
 
@@ -67,10 +71,6 @@ function buildRouter(): Router {
   r.get("/api/macro/latest/:realm", (req, res, params) => handleMacroLatest(req, res, params.realm));
   r.get("/api/macro/state/:realm", (req, res, params) => handleMacroState(req, res, params.realm));
 
-
-
-
-
   // Public API (rate limited)
   r.get("/api/public/status", handlePublicStatus);
   r.get("/api/public/macro", wrapRateLimited(handlePublicMacro));
@@ -78,8 +78,7 @@ function buildRouter(): Router {
   r.get("/api/public/inflation", wrapRateLimited(handlePublicInflation));
   r.get("/api/public/export", wrapRateLimited(handlePublicExportList));
   r.get("/api/public/export/:dataset", wrapRateLimited(handlePublicExport));
-
-
+  r.get("/api/public/sync", wrapRateLimited(handleSync));
 
   // Cron (Vercel Cron Jobs)
   r.post("/api/cron/cycle", handleCronCycle);
@@ -113,6 +112,64 @@ function ensureDataDir(): void {
   logger.info(`Data directory ready at ${dir}`);
 }
 
+function getMimeType(filePath: string): string {
+  const ext = extname(filePath).toLowerCase();
+  const mimeTypes: Record<string, string> = {
+    ".html": "text/html",
+    ".js": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".eot": "application/vnd.ms-fontobject",
+  };
+  return mimeTypes[ext] || "application/octet-stream";
+}
+
+function serveStaticFiles(app: Express, staticDir: string): void {
+  // Serve admin dashboard index.html with meta tag injection
+  app.get("/admin", (req, res, next) => {
+    const indexPath = join(staticDir, "index.html");
+    if (existsSync(indexPath)) {
+      let html = readFileSync(indexPath, "utf-8");
+      // Inject Vercel URL into meta tag
+      const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '';
+      html = html.replace(
+        '<meta name="api-base-url" content="">',
+        `<meta name="api-base-url" content="${vercelUrl}">`
+      );
+      res.setHeader("Content-Type", "text/html");
+      res.send(html);
+    } else {
+      next();
+    }
+  });
+
+  // Serve other static files
+  app.use("/admin", (req, res, next) => {
+    const requestedPath = req.path === "/" || req.path === "" ? "/index.html" : req.path;
+    // Skip index.html since it's handled above
+    if (req.path === "/" || req.path === "") {
+      return next();
+    }
+    const filePath = join(staticDir, requestedPath);
+    
+    if (existsSync(filePath) && !filePath.endsWith("/")) {
+      res.setHeader("Content-Type", getMimeType(filePath));
+      res.sendFile(filePath);
+    } else {
+      next();
+    }
+  });
+}
+
 export function createApp(): Express {
   const app = express();
   const router = buildRouter();
@@ -121,6 +178,12 @@ export function createApp(): Express {
   startScheduler().catch((err) => {
     logger.error("Scheduler failed to start", err instanceof Error ? err.message : String(err));
   });
+
+  // Serve admin dashboard from /admin
+  const adminStaticDir = join(__dirname, "..", "..", "admin", "public");
+  if (existsSync(adminStaticDir)) {
+    serveStaticFiles(app, adminStaticDir);
+  }
 
   app.use(async (req, res) => {
     requestLogger(req, res);
@@ -163,5 +226,6 @@ export function startServer(port: number): void {
   app.listen(port, () => {
     logger.info(`HTTP server listening on port ${port}`);
     logger.info(`  API base: http://localhost:${port}/api`);
+    logger.info(`  Admin UI: http://localhost:${port}/admin`);
   });
 }
