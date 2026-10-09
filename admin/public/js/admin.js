@@ -404,7 +404,7 @@ class AdminDashboard {
                     <div class="result-icon ${result.ok ? 'success' : 'error'}">${iconSvg}</div>
                     <div class="result-content">
                         <div class="result-title">${action} ${result.ok ? 'completed' : 'failed'}</div>
-                        <div class="result-detail">${JSON.stringify(result.result || result.error, null, 2)}</div>
+                        <div class="result-detail">${JSON.stringify(result.data || result.error, null, 2)}</div>
                     </div>
                 </div>
             `;
