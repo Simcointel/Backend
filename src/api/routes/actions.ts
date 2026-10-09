@@ -4,7 +4,7 @@ import { executeAction } from "../../admin/index.js";
 import { loadConfig } from "../../config/index.js";
 import { startScheduler, shutdown, isSchedulerRunning } from "../../jobs/scheduler.js";
 
-const VALID_ACTIONS = ["fetch", "aggregate", "analytics", "cleanup", "compress", "status", "reload-config", "get-config", "update-config", "set-log-level"];
+const VALID_ACTIONS = ["fetch", "aggregate", "analytics", "cleanup", "compress", "status", "reload-config", "get-config", "update-config", "set-log-level", "government-orders", "public-export"];
 
 export async function handleAction(req: IncomingMessage, res: ServerResponse, action: string): Promise<void> {
   if (!VALID_ACTIONS.includes(action)) {

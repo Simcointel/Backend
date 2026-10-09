@@ -165,7 +165,20 @@ function serveStaticFiles(app: Express, staticDir: string): void {
       res.setHeader("Content-Type", getMimeType(filePath));
       res.sendFile(filePath);
     } else {
-      next();
+      // SPA fallback - serve index.html for client-side routing
+      const indexPath = join(staticDir, "index.html");
+      if (existsSync(indexPath)) {
+        let html = readFileSync(indexPath, "utf-8");
+        const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '';
+        html = html.replace(
+          '<meta name="api-base-url" content="">',
+          `<meta name="api-base-url" content="${vercelUrl}">`
+        );
+        res.setHeader("Content-Type", "text/html");
+        res.send(html);
+      } else {
+        next();
+      }
     }
   });
 }

@@ -28,8 +28,8 @@ export async function fetchGovernmentOrders(realm: number): Promise<GovernmentOr
   const cfg = loadConfig();
   const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl);
   
-  // Government orders endpoint - assuming /government/orders based on API pattern
-  const data = await client["fetchJson"](("/government/orders") as any);
+  // Government orders endpoint - using the correct simcotools API path
+  const data = await client["fetchJson"](`/v1/realms/${realm}/government-orders`);
   
   if (Array.isArray(data)) return { orders: data as GovernmentOrder[] };
   if (data && typeof data === "object" && "orders" in data) {

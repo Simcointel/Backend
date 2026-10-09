@@ -10,6 +10,8 @@ import { retentionCleanup } from "../jobs/cleanup.js";
 import { runCompression } from "../jobs/compress.js";
 import { generateHealthReport } from "../health/health.js";
 import { getFailureStatus } from "../jobs/failureTracker.js";
+import { runAllGovernmentOrders } from "../jobs/governmentOrders.js";
+import { runPublicExportPipeline } from "../jobs/publicExportPipeline.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -41,14 +43,24 @@ export async function executeAction(action: string, params?: Record<string, unkn
     }
 
     case "compress": {
-      const realm = (params?.realm as number) ?? cfg.simco.realms[0];
-      const retentionDays = (params?.retentionDays as number) ?? 1;
-      const dryRun = (params?.dryRun as boolean) ?? false;
-      const result = runCompression(cfg.dataRepo.path, realm, retentionDays, dryRun);
-      return { action, ok: result.ok, result };
-    }
+          const realm = (params?.realm as number) ?? cfg.simco.realms[0];
+          const retentionDays = (params?.retentionDays as number) ?? 1;
+          const dryRun = (params?.dryRun as boolean) ?? false;
+          const result = runCompression(cfg.dataRepo.path, realm, retentionDays, dryRun);
+          return { action, ok: result.ok, result };
+        }
 
-    case "status": {
+        case "government-orders": {
+              const result = await runAllGovernmentOrders();
+              return { action, ok: result.ok, result: { report: result.results, errors: [] } };
+            }
+
+            case "public-export": {
+              const result = await runPublicExportPipeline();
+              return { action, ok: result.ok, result };
+            }
+
+        case "status": {
       const health = await generateHealthReport();
       const failures = getFailureStatus(cfg.schedules.consecutiveFailureThreshold);
       return { action, ok: true, result: { health, failures, realms: cfg.simco.realms } };
