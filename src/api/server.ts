@@ -192,9 +192,27 @@ export function createApp(): Express {
   });
 
   // Serve admin dashboard from /admin
-  const adminStaticDir = join(__dirname, "..", "..", "admin", "public");
-  if (existsSync(adminStaticDir)) {
+  // In Vercel, __dirname is the dist folder, admin is at project root
+  // Try multiple possible locations
+  const possiblePaths = [
+    join(__dirname, "..", "..", "admin", "public"),  // Local dev: src/api/ -> project root
+    join(__dirname, "..", "admin", "public"),         // Vercel: dist/api/ -> project root
+    join(process.cwd(), "admin", "public"),           // Fallback: cwd
+  ];
+
+  let adminStaticDir = "";
+  for (const p of possiblePaths) {
+    if (existsSync(p)) {
+      adminStaticDir = p;
+      break;
+    }
+  }
+
+  if (adminStaticDir) {
     serveStaticFiles(app, adminStaticDir);
+    logger.info(`Admin static files served from: ${adminStaticDir}`);
+  } else {
+    logger.warn("Admin static directory not found in any expected location");
   }
 
   app.use(async (req, res) => {

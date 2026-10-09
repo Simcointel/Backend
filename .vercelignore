@@ -1,0 +1,26 @@
+# Vercel ignore patterns
+# Do not ignore admin folder - it needs to be deployed
+!admin/
+!admin/public/**
+
+# Ignore node_modules and build artifacts
+node_modules/
+dist/
+*.log
+.env
+.env.local
+
+# Ignore test files
+**/*.test.ts
+**/*.spec.ts
+coverage/
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
