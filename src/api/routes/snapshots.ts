@@ -4,13 +4,17 @@ import { resolve, join } from "path";
 import { sendSuccess, sendError } from "../middleware.js";
 import { loadConfig } from "../../config/index.js";
 
+function getSnapshotDir(dataPath: string, realm: string, type: string): string {
+  return resolve(dataPath, "snapshots", type, `realm-${realm}`);
+}
+
 export async function handleListSnapshots(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const cfg = loadConfig();
   const dataPath = resolve(cfg.dataRepo.path);
   const result: Record<string, { count: number; latest: string | null }> = {};
 
   for (const realm of cfg.simco.realms) {
-    const dir = resolve(dataPath, "snapshots", "market", `realm-${realm}`);
+    const dir = getSnapshotDir(dataPath, String(realm), "market");
     if (!existsSync(dir)) {
       result[`realm-${realm}`] = { count: 0, latest: null };
       continue;
@@ -31,14 +35,21 @@ export async function handleListSnapshots(req: IncomingMessage, res: ServerRespo
 export async function handleListRealmSnapshots(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
   const cfg = loadConfig();
   const dataPath = resolve(cfg.dataRepo.path);
-  const dir = resolve(dataPath, "snapshots", "market", `realm-${realm}`);
+  
+  // Get type from query params (default: market)
+  const url = new URL(req.url || "/", "http://localhost");
+  const type = url.searchParams.get("type") || "market";
+  
+  const dir = getSnapshotDir(dataPath, realm, type);
 
   if (!existsSync(dir)) {
-    return sendSuccess(res, { realm, files: [] });
+    return sendSuccess(res, { realm, files: [], type });
   }
 
+  const prefix = type === "government-orders" ? "government-orders-" : "market-snapshot-";
+  
   const files = readdirSync(dir)
-    .filter((f) => f.startsWith("market-snapshot-") && f.endsWith(".json"))
+    .filter((f) => f.startsWith(prefix) && f.endsWith(".json"))
     .sort()
     .reverse()
     .map((f) => {
@@ -51,15 +62,20 @@ export async function handleListRealmSnapshots(req: IncomingMessage, res: Server
       }
     });
 
-  sendSuccess(res, { realm, files });
+  sendSuccess(res, { realm, type, files });
 }
 
 export async function handleGetSnapshot(req: IncomingMessage, res: ServerResponse, realm: string, file: string): Promise<void> {
   const cfg = loadConfig();
   const dataPath = resolve(cfg.dataRepo.path);
-  const filePath = resolve(dataPath, "snapshots", "market", `realm-${realm}`, file);
+  
+  // Get type from query params (default: market)
+  const url = new URL(req.url || "/", "http://localhost");
+  const type = url.searchParams.get("type") || "market";
+  
+  const filePath = resolve(dataPath, "snapshots", type, `realm-${realm}`, file);
 
-  if (!filePath.startsWith(resolve(dataPath))) {
+  if (!filePath.startsWith(resolve(dataPath, "snapshots", type))) {
     return sendError(res, 403, "Path traversal denied");
   }
 

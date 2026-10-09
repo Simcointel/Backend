@@ -13,6 +13,7 @@ import {
 import { runMacroPipeline } from "./macroPipeline.js";
 import { computeProfitMargins } from "./profitMargins.js";
 import { runRetailSummary } from "./retailSummary.js";
+import { runAllGovernmentOrders } from "./governmentOrders.js";
 import { validatePublicDataset } from "./validation.js";
 
 export interface PublicExportResult {
@@ -97,7 +98,23 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
         logger.warn(`[realm ${realm}] Failed to export margins: ${err}`);
       }
 
-      // 6. Retail Data (for retail calculator)
+      // 6. Government Orders
+      try {
+        const govOrdersResult = await runAllGovernmentOrders();
+        const realmResult = govOrdersResult.results.find(r => r.realm === realm);
+        if (realmResult?.ok && realmResult.count > 0) {
+          // Fetch the latest saved government orders snapshot
+          const govOrders = await loadLatestGovernmentOrders(realm);
+          if (govOrders && validatePublicDataset("government-orders", govOrders.orders).valid) {
+            const gof = writeJson(rd, "government-orders.json", govOrders.orders);
+            if (gof) result.files.push(gof);
+          }
+        }
+      } catch (err) {
+        logger.warn(`[realm ${realm}] Failed to export government orders: ${err}`);
+      }
+
+      // 7. Retail Data (for retail calculator)
       try {
         await runRetailSummary(realm);
         const retailData = JSON.parse(readFileSync(resolve(getDataRoot(), "aggregates", "retail", `realm-${realm}`, "index.json"), "utf-8")) as { latest: string };
@@ -143,4 +160,27 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
 
   logger.info(`Public export pipeline: ${result.files.length} files in ${result.durationMs}ms`);
   return result;
+}
+
+// Helper to load latest government orders from data repo
+async function loadLatestGovernmentOrders(realm: number): Promise<{ t: string; r: number; orders: any[] } | null> {
+  const cfg = loadConfig();
+  const basePath = resolve(getDataRoot(), "snapshots", "government", "orders", `realm-${realm}`);
+  if (!existsSync(basePath)) return null;
+  
+  const indexPath = resolve(basePath, "index.json");
+  if (!existsSync(indexPath)) return null;
+  
+  try {
+    const index = JSON.parse(readFileSync(indexPath, "utf-8")) as { latest?: string };
+    if (!index.latest) return null;
+    
+    const latestPath = resolve(basePath, index.latest);
+    if (!existsSync(latestPath)) return null;
+    
+    const snapshot = JSON.parse(readFileSync(latestPath, "utf-8"));
+    return snapshot.data || null;
+  } catch {
+    return null;
+  }
 }

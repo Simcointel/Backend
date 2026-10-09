@@ -1,0 +1,6 @@
+{
+  "enableGovernmentOrders": true,
+  "fetchDayOfWeek": 3,
+  "fetchHourUtc": 13,
+  "fetchMinuteUtc": 0
+}

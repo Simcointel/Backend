@@ -152,14 +152,13 @@ function serveStaticFiles(app: Express, staticDir: string): void {
     }
   });
 
-  // Serve other static files
+  // Serve other static files (CSS, JS, assets)
   app.use("/admin", (req, res, next) => {
-    const requestedPath = req.path === "/" || req.path === "" ? "/index.html" : req.path;
     // Skip index.html since it's handled above
     if (req.path === "/" || req.path === "") {
       return next();
     }
-    const filePath = join(staticDir, requestedPath);
+    const filePath = join(staticDir, req.path);
     
     if (existsSync(filePath) && !filePath.endsWith("/")) {
       res.setHeader("Content-Type", getMimeType(filePath));
