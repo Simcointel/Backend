@@ -181,21 +181,31 @@ class AdminDashboard {
         }
 
         getApiBaseUrl() {
-            // Check for Vercel URL in environment or meta tag
-            // Priority: 1. Meta tag, 2. VERCEL_URL env, 3. Relative path
-            const metaUrl = document.querySelector('meta[name="api-base-url"]')?.content;
-            if (metaUrl) return metaUrl;
-        
-            // Check if we're on Vercel
-            if (window.location.hostname.includes('vercel.app') || 
-                window.location.hostname.includes('vercel') ||
-                window.location.hostname.includes('.dev')) {
-                return `https://${window.location.host}`;
-            }
-        
-            // Default to relative path (same origin)
-            return '';
-        }
+                    // Check for Vercel URL in meta tag
+                    const metaUrl = document.querySelector('meta[name="api-base-url"]')?.content;
+                    if (metaUrl && metaUrl.length > 0) {
+                        // Only use meta URL if it matches current origin (same deployment)
+                        try {
+                            const metaOrigin = new URL(metaUrl).origin;
+                            const currentOrigin = window.location.origin;
+                            if (metaOrigin === currentOrigin) {
+                                return metaUrl;
+                            }
+                        } catch {
+                            // Invalid URL, ignore
+                        }
+                    }
+
+                    // On Vercel (same domain for admin + API), use relative paths
+                    if (window.location.hostname.includes('vercel.app') || 
+                        window.location.hostname.includes('vercel') ||
+                        window.location.hostname.includes('.dev')) {
+                        return '';
+                    }
+
+                    // Default to relative path (same origin)
+                    return '';
+                }
 
     async loadInitialData() {
         try {
