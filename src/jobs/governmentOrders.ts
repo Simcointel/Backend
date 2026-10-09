@@ -29,7 +29,7 @@ export async function fetchGovernmentOrders(realm: number): Promise<GovernmentOr
   const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl);
   
   // Government orders endpoint - client baseUrl already includes realm, so use relative path
-  const data = await client["fetchJson"]("/government-orders");
+  const data = await client.getGovernmentOrders();
   
   if (Array.isArray(data)) return { orders: data as GovernmentOrder[] };
   if (data && typeof data === "object" && "orders" in data) {
@@ -51,7 +51,7 @@ export async function computeGovernmentOrders(realm: number): Promise<{ ok: bool
     const cfg = loadConfig();
     const writer = getDataRepoWriter(cfg.dataRepo);
     const timestamp = new Date().toISOString().replace(/:/g, "-");
-    const subDir = `government/orders/realm-${realm}`;
+    const subDir = `snapshots/government/orders/realm-${realm}`;
     
     await writer.writeSnapshot(
       { timestamp, snapshotType: "government-orders", data: report },

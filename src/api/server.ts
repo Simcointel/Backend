@@ -1,7 +1,7 @@
 import { setDefaultResultOrder } from "dns";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { existsSync, mkdirSync, readFileSync } from "fs";
-import { join, resolve, extname, dirname } from "path";
+import { join, resolve, extname, dirname, sep } from "path";
 import { fileURLToPath } from "url";
 import express, { Express, Request, Response, NextFunction } from "express";
 import { logger } from "../logging/logger.js";
@@ -101,7 +101,7 @@ function wrapRateLimited(handler: (req: Request, res: Response, params: Record<s
     if (!rateLimitMiddleware(req, res)) return;
     const url = req.url || "/";
     const query = new URLSearchParams(url.includes("?") ? url.split("?")[1] : "");
-    handler(req, res, params, body, query);
+    await handler(req, res, params, body, query);
   };
 }
 

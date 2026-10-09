@@ -198,6 +198,10 @@ export class SimcoToolsClient {
     throw new ApiError("Unexpected buildings response shape");
   }
 
+  async getGovernmentOrders(): Promise<unknown> {
+    return this.fetchJson<unknown>("/government-orders");
+  }
+
   async getMarketCandlesticks(resourceId: number, quality: number, _startDate?: string, _endDate?: string): Promise<any[]> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);

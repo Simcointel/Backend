@@ -35,12 +35,13 @@ function formatUptime(ms: number): string {
   return `${h}h ${m % 60}m ${s % 60}s`;
 }
 
-let lastCompressCycle = 0;
+let lastCompressCycle = 1;
 let lastGovernmentOrdersCycle = 0;
+let lastGovernmentOrdersFetchDate = '';
 
 export async function startScheduler(): Promise<void> {
   const cfg = loadConfig();
-  const intervalMs = cfg.schedules.fetchIntervalMinutes * 60 * 1000;
+  const intervalMs = Math.max(60_000, cfg.schedules.fetchIntervalMinutes * 60 * 1000);
   let cycle = 0;
   const startedAt = Date.now();
   schedulerRunning = true;
@@ -102,43 +103,65 @@ export async function startScheduler(): Promise<void> {
         }
 
         if (cfg.macroSettings.enableProfitMargins) {
-          const profitResult = await runAllProfitMargins();
-          if (!profitResult.ok) {
-            logger.warn("Profit margins pipeline had failures");
+          try {
+            const profitResult = await runAllProfitMargins();
+            if (!profitResult.ok) {
+              logger.warn("Profit margins pipeline had failures");
+            }
+          } catch (err) {
+            logger.error('Profit margins pipeline failed', err);
           }
         }
 
         // Run history sync in parallel
         if (cfg.macroHistory.enableHistoryIngestion) {
-          const historyResult = await runAllHistorySync();
-          if (!historyResult.ok) {
-            logger.warn("History sync pipeline had failures");
+          try {
+            const historyResult = await runAllHistorySync();
+            if (!historyResult.ok) {
+              logger.warn("History sync pipeline had failures");
+            }
+          } catch (err) {
+            logger.error('History sync pipeline failed', err);
           }
         }
 
         // Government orders (once per week on Wednesday after 13:00 UTC)
-        if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg)) {
-          const govResult = await runAllGovernmentOrders();
-          if (!govResult.ok) {
-            logger.warn("Government orders pipeline had failures");
+        const todayStr = new Date().toISOString().slice(0, 10);
+        if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg) && lastGovernmentOrdersFetchDate !== todayStr) {
+          lastGovernmentOrdersFetchDate = todayStr;
+          try {
+            const govResult = await runAllGovernmentOrders();
+            if (!govResult.ok) {
+              logger.warn("Government orders pipeline had failures");
+            }
+          } catch (err) {
+            logger.error('Government orders pipeline failed', err);
           }
         }
 
 
 
     // Public dataset export (every cycle)
-    const exportResult = await runPublicExportPipeline();
-    if (!exportResult.ok) {
-      logger.warn("Public export pipeline had failures", exportResult.errors.join(", "));
+    try {
+      const exportResult = await runPublicExportPipeline();
+      if (!exportResult.ok) {
+        logger.warn("Public export pipeline had failures", exportResult.errors.join(", "));
+      }
+    } catch (err) {
+      logger.error('Public export pipeline failed', err);
     }
 
 
     if (cfg.featureFlags.enableCompression && cycle - lastCompressCycle >= getCompressIntervalCycles(cfg.schedules.compressionIntervalDays, cfg.schedules.fetchIntervalMinutes)) {
-      for (const realm of cfg.simco.realms) {
-        const compressResult = runCompression(cfg.dataRepo.path, realm, cfg.schedules.snapshotRetentionDays);
-        if (!compressResult.ok) logger.warn(`[realm ${realm}] Compression failed`, compressResult.error ?? "");
+      try {
+        for (const realm of cfg.simco.realms) {
+          const compressResult = runCompression(cfg.dataRepo.path, realm, cfg.schedules.snapshotRetentionDays);
+          if (!compressResult.ok) logger.warn(`[realm ${realm}] Compression failed`, compressResult.error ?? "");
+        }
+        lastCompressCycle = cycle;
+      } catch (err) {
+        logger.error('Compression pipeline failed', err);
       }
-      lastCompressCycle = cycle;
     }
 
     const cycleElapsed = Date.now() - cycleStart;

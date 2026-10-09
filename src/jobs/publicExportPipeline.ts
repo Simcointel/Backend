@@ -54,6 +54,14 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
   try {
     if (!existsSync(publicDir)) mkdirSync(publicDir, { recursive: true });
 
+    // Fetch government orders once for all realms
+    let govOrdersResult: { results: Array<{ realm: number; ok: boolean; count: number }> } | null = null;
+    try {
+      govOrdersResult = await runAllGovernmentOrders();
+    } catch (err) {
+      logger.warn(`Failed to fetch government orders for export: ${err}`);
+    }
+
     // Per-realm datasets
     for (const realm of realms) {
       const rd = resolve(publicDir, `realm-${realm}`);
@@ -100,8 +108,7 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
 
       // 6. Government Orders
       try {
-        const govOrdersResult = await runAllGovernmentOrders();
-        const realmResult = govOrdersResult.results.find(r => r.realm === realm);
+        const realmResult = govOrdersResult?.results.find(r => r.realm === realm);
         if (realmResult?.ok && realmResult.count > 0) {
           // Fetch the latest saved government orders snapshot
           const govOrders = await loadLatestGovernmentOrders(realm);
@@ -179,7 +186,7 @@ async function loadLatestGovernmentOrders(realm: number): Promise<{ t: string; r
     if (!existsSync(latestPath)) return null;
     
     const snapshot = JSON.parse(readFileSync(latestPath, "utf-8"));
-    return snapshot.data || null;
+    return snapshot.data;
   } catch {
     return null;
   }
