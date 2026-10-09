@@ -724,14 +724,13 @@ document.addEventListener('DOMContentLoaded', () => {
     window.admin = new AdminDashboard();
 });
 
-// Global functions for onclick handlers
-window.admin = null;
-function runAction(action) { window.admin?.runAction(action); }
-function controlScheduler(cmd) { window.admin?.controlScheduler(cmd); }
-function loadSnapshots() { window.admin?.loadSnapshots(); }
-function loadLogs() { window.admin?.loadLogs(); }
-function clearLogs() { window.admin?.clearLogs(); }
-function filterLogs(q) { window.admin?.filterLogs(q); }
-function saveConfigSection(section) { window.admin?.saveConfigSection(null, section); }
-function saveConfigField(input) { window.admin?.saveConfigField(input); }
-function saveSchedulerConfig(e) { window.admin?.saveSchedulerConfig(e); }
+// Global functions for onclick handlers - MUST attach to window explicitly for module scripts
+window.runAction = function(action) { window.admin?.runAction(action); };
+window.controlScheduler = function(cmd) { window.admin?.controlScheduler(cmd); };
+window.loadSnapshots = function() { window.admin?.loadSnapshots(); };
+window.loadLogs = function() { window.admin?.loadLogs(); };
+window.clearLogs = function() { window.admin?.clearLogs(); };
+window.filterLogs = function(q) { window.admin?.filterLogs(q); };
+window.saveConfigSection = function(section) { window.admin?.saveConfigSection(null, section); };
+window.saveConfigField = function(input) { window.admin?.saveConfigField(input); };
+window.saveSchedulerConfig = function(e) { window.admin?.saveSchedulerConfig(e); };
