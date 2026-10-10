@@ -63,7 +63,7 @@ export async function executeAction(action: string, params?: Record<string, unkn
       console.log(`[executeAction] government-orders: calling runAllGovernmentOrders`);
       const result = await runAllGovernmentOrders();
       console.log(`[executeAction] government-orders: runAllGovernmentOrders returned`);
-      return { action, ok: result.ok, result: { report: result.results, errors: [] } };
+      return { action, ok: result.ok, result: { report: result.reports ?? result.results, errors: [] } };
     }
 
     case "public-export": {

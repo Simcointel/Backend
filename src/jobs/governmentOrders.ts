@@ -67,11 +67,21 @@ export async function computeGovernmentOrders(realm: number): Promise<{ ok: bool
   }
 }
 
-export async function runAllGovernmentOrders(): Promise<{ ok: boolean; results: Array<{ realm: number; ok: boolean; count: number }> }> {
+export interface GovernmentOrdersResult {
+  ok: boolean;
+  results: Array<{ realm: number; ok: boolean; count: number }>;
+  reports: GovernmentOrdersReport[];
+}
+
+export async function runAllGovernmentOrders(): Promise<GovernmentOrdersResult> {
   const cfg = loadConfig();
+  const reports: GovernmentOrdersReport[] = [];
   const results = await Promise.allSettled(
     cfg.simco.realms.map(async (r) => {
       const res = await computeGovernmentOrders(r);
+      if (res.ok && res.report) {
+        reports.push(res.report);
+      }
       return { realm: r, ok: res.ok, count: res.report?.orders.length ?? 0 };
     })
   );
@@ -93,5 +103,5 @@ export async function runAllGovernmentOrders(): Promise<{ ok: boolean; results: 
 
   const totalOrders = fulfilled.reduce((s, r) => s + r.count, 0);
   logger.info(`Government orders: ${fulfilled.filter((r) => r.ok).length}/${fulfilled.length} realms ok, ${totalOrders} orders`);
-  return { ok: allOk, results: fulfilled };
+  return { ok: allOk, results: fulfilled, reports };
 }
