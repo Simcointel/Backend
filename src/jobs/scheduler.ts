@@ -128,11 +128,12 @@ export async function startScheduler(): Promise<void> {
         // Government orders (once per week on Wednesday after 13:00 UTC)
         const todayStr = new Date().toISOString().slice(0, 10);
         if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg) && lastGovernmentOrdersFetchDate !== todayStr) {
-          lastGovernmentOrdersFetchDate = todayStr;
           try {
             const govResult = await runAllGovernmentOrders();
             if (!govResult.ok) {
               logger.warn("Government orders pipeline had failures");
+            } else {
+              lastGovernmentOrdersFetchDate = todayStr;
             }
           } catch (err) {
             logger.error('Government orders pipeline failed', err);
@@ -206,6 +207,9 @@ function shouldFetchGovernmentOrders(cfg: ReturnType<typeof loadConfig>): boolea
   return true;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const sleep = async (ms: number) => {
+  const step = 1000;
+  for (let i = 0; i < ms && !shuttingDown; i += step) {
+    await new Promise(r => setTimeout(r, Math.min(step, ms - i)));
+  }
+};

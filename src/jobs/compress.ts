@@ -11,13 +11,11 @@ export interface CompressResult {
   error?: string;
 }
 
-function parseSnapshotTimestamp(name: string): Date | null {
-  const prefix = "market-snapshot-";
-  if (!name.startsWith(prefix) || !name.endsWith(".json")) return null;
-  const tsPart = name.slice(prefix.length, -".json".length);
-  const iso = tsPart.replace(/-/g, ":").replace(/T(\d+):(\d+):(\d+)/, (_, h, m, s) => `T${h}:${m}:${s}`);
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d;
+function parseSnapshotTimestamp(filename: string): Date {
+  const match = filename.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+  if (!match) return new Date(0);
+  const [, y, mo, d, h, mi, s] = match;
+  return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`);
 }
 
 function formatMonth(d: Date): string {

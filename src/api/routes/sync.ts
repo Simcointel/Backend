@@ -22,9 +22,13 @@ export function handleSync(req: IncomingMessage, res: ServerResponse): void {
     return;
   }
 
+  const url = new URL(req.url ?? "/", "http://localhost");
+  const maxFiles = parseInt(url.searchParams.get("limit") ?? "50", 10);
+
   const files: Array<{ path: string; content: string }> = [];
 
   function walkDir(dir: string): void {
+    if (files.length >= maxFiles) return;
     let entries: string[];
     try {
       entries = readdirSync(dir);
@@ -32,6 +36,8 @@ export function handleSync(req: IncomingMessage, res: ServerResponse): void {
       return;
     }
     for (const name of entries) {
+      if (files.length >= maxFiles) return;
+      if (name === "node_modules" || name === ".git" || name.startsWith(".")) continue;
       const fullPath = join(dir, name);
       const relPath = relative(repoRoot, fullPath).replace(/\\/g, "/");
       try {
@@ -39,6 +45,7 @@ export function handleSync(req: IncomingMessage, res: ServerResponse): void {
         if (stat.isDirectory()) {
           walkDir(fullPath);
         } else if (stat.isFile()) {
+          if (stat.size > 1_000_000) continue;
           const content = readFileSync(fullPath, "utf-8");
           files.push({ path: relPath, content });
         }

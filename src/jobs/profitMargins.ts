@@ -298,8 +298,8 @@ export async function computeProfitMargins(realm: number): Promise<ProfitMargins
         entries.push(...withDeltas);
       }
     }
-  } catch {
-    logger.debug(`[realm ${realm}] Could not read previous margins for deltas`);
+  } catch (err) {
+    logger.warn(`[realm ${realm}] Could not read previous margins for deltas: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   try {

@@ -6,13 +6,23 @@ interface CacheEntry<T> {
 }
 
 class SimpleCache {
+  private static MAX_SIZE = 1000;
   private cache = new Map<string, CacheEntry<any>>();
 
   set<T>(key: string, data: T, ttlMs: number): void {
+    if (this.cache.size >= SimpleCache.MAX_SIZE) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
     this.cache.set(key, {
       data,
       expiry: Date.now() + ttlMs,
     });
+  }
+
+  has(key: string): boolean {
+    const entry = this.cache.get(key);
+    return entry !== undefined && !(Date.now() > entry.expiry);
   }
 
   get<T>(key: string): T | null {

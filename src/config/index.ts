@@ -183,6 +183,8 @@ export function loadConfig(): SimcoIntelConfig {
 export function reloadConfig(): SimcoIntelConfig {
   console.log("[reloadConfig] Start - clearing cache");
   cached = null;
+  const { resetDataRepoWriter } = require("../storage/dataRepoWriter");
+  resetDataRepoWriter();
   console.log("[reloadConfig] Calling loadConfig");
   const result = loadConfig();
   console.log("[reloadConfig] loadConfig returned");
