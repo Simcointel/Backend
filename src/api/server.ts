@@ -90,34 +90,6 @@ function buildRouter(): Router {
       sendSuccess(res, { received: true, body });
     });
 
-    // Debug: test GitHub token
-    r.get("/api/debug-github-token", async (req, res) => {
-      const { getGithubToken } = await import("./connectAuth.js");
-      const token = await getGithubToken();
-      if (!token) {
-        return sendError(res, 401, "No GitHub token available");
-      }
-      // Test the token against GitHub API
-      try {
-        const ghRes = await fetch("https://api.github.com/user", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "User-Agent": "SimcoIntel-Backend",
-          },
-        });
-        const ghData = await ghRes.json().catch(() => ({}));
-        sendSuccess(res, {
-          tokenLength: token.length,
-          tokenPrefix: token.slice(0, 7),
-          githubStatus: ghRes.status,
-          githubUser: ghData.login || null,
-          githubMessage: ghData.message || null,
-        });
-      } catch (err) {
-        sendError(res, 500, err instanceof Error ? err.message : "GitHub API test failed");
-      }
-    });
-
     return r;
 }
 
@@ -232,7 +204,7 @@ export function createApp(): Express {
     next();
   });
 
-  app.use(express.json());
+  app.use(express.json({ limit: '1mb' }));
 
     // Debug: log request body after parsing
     app.use((req: Request, res: Response, next: NextFunction) => {

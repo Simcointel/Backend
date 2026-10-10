@@ -34,8 +34,14 @@ function loadJson<T>(basePath: string, name: string): T | null {
   return JSON.parse(readFileSync(file, "utf-8")) as T;
 }
 
-function mergeWithDefaults<T>(loaded: T | null, defaults: T): T {
-  return loaded ? { ...defaults, ...loaded } : defaults;
+function deepMerge(target: any, source: any): any {
+  if (Array.isArray(source)) return source;
+  if (typeof source !== "object" || source === null) return source;
+  const result = { ...target };
+  for (const key of Object.keys(source)) {
+    result[key] = deepMerge(target?.[key], source[key]);
+  }
+  return result;
 }
 
 function parseRealmList(raw: string | undefined, fallback: number[]): number[] {
@@ -128,13 +134,13 @@ export function loadConfig(): SimcoIntelConfig {
 
     for (const basePath of configPaths) {
       const f = loadJson<FormulaConfig>(basePath, "formulas");
-      if (f) formulas = mergeWithDefaults(f, formulaDefaults);
+      if (f) formulas = deepMerge(formulaDefaults, f);
 
       const s = loadJson<ScheduleConfig>(basePath, "schedules");
-      if (s) schedules = mergeWithDefaults(s, scheduleDefaults);
+      if (s) schedules = deepMerge(scheduleDefaults, s);
 
       const ff = loadJson<FeatureFlags>(basePath, "featureFlags");
-      if (ff) featureFlags = mergeWithDefaults(ff, featureFlagDefaults);
+      if (ff) featureFlags = deepMerge(featureFlagDefaults, ff);
 
       const mi = loadJson<MacroIndexConfig>(basePath, "macroIndexes");
       if (mi) macroIndexes = mi;

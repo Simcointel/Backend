@@ -16,6 +16,10 @@ function isValidSnapshotType(type: string): boolean {
   return VALID_SNAPSHOT_TYPES.has(type);
 }
 
+function isValidRealm(realm: string): boolean {
+  return /^[a-zA-Z0-9-]+$/.test(realm);
+}
+
 function getSnapshotDir(dataPath: string, realm: string, type: string): string {
   return resolve(dataPath, "snapshots", type, `realm-${realm}`);
 }

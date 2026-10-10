@@ -4,6 +4,10 @@ import { resolve } from "path";
 import { sendSuccess, sendError } from "../middleware.js";
 import { loadConfig } from "../../config/index.js";
 
+function isValidRealm(realm: string): boolean {
+  return /^[a-zA-Z0-9-]+$/.test(realm);
+}
+
 export async function handleListArchives(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const cfg = loadConfig();
   const dataPath = resolve(cfg.dataRepo.path);

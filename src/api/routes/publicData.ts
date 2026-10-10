@@ -51,7 +51,7 @@ function readAllFiles(subDir: string, limit: number): unknown[] {
 }
 
 function historyDir(realm: number): string {
-  return `aggregates/realm-status/realm-${realm}`;
+  return `aggregates/macro-history/realm-${realm}`;
 }
 
 function indexDirPath(realm: number): string {
