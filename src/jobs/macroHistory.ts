@@ -8,7 +8,6 @@ import { SimcoToolsClient, type RealmSummaryEntry } from "../api/simcoTools.js";
 
 const MAX_PAGES = 1000;
 
-const MAX_PAGES = 1000;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

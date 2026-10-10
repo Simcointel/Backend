@@ -57,7 +57,6 @@ export function handlePublicStatus(req: IncomingMessage, res: ServerResponse, _p
       inflation: "/api/public/inflation?realm=0&limit=30",
       export: "/api/public/export/:dataset",
     },
-    rateLimiting: getRateLimitStats(),
     generatedAt: new Date().toISOString(),
   });
 }
