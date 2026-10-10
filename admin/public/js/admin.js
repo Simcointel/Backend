@@ -82,7 +82,7 @@ class AdminDashboard {
         // Scheduler controls
         document.getElementById('startBtn')?.addEventListener('click', () => this.controlScheduler('start'));
         document.getElementById('stopBtn')?.addEventListener('click', () => this.controlScheduler('stop'));
-        document.querySelector('[onclick*="controlScheduler"]')?.addEventListener('click', () => this.controlScheduler('status'));
+        document.getElementById('refreshSchedulerBtn')?.addEventListener('click', () => this.controlScheduler('status'));
 
         // Snapshots toolbar
         document.getElementById('snapshotRealm')?.addEventListener('change', () => this.loadSnapshots());
@@ -94,14 +94,6 @@ class AdminDashboard {
         document.getElementById('logFilter')?.addEventListener('input', (e) => this.filterLogs(e.target.value));
         document.querySelector('[onclick="loadLogs()"]')?.addEventListener('click', () => this.loadLogs());
         document.querySelector('[onclick="clearLogs()"]')?.addEventListener('click', () => this.clearLogs());
-
-        // Config form submission
-        document.querySelectorAll('.config-section').forEach(section => {
-            const form = section.querySelector('form');
-            if (form) {
-                form.addEventListener('submit', (e) => this.saveConfigSection(e, section.dataset.section));
-            }
-        });
 
         // Scheduler config form
         document.getElementById('schedulerConfigForm')?.addEventListener('submit', (e) => this.saveSchedulerConfig(e));
@@ -227,8 +219,8 @@ class AdminDashboard {
 
     async loadRealms() {
         try {
-            const cfg = await this.api('/config');
-            const realms = cfg.realms || [0, 1];
+            const status = await this.api('/status');
+            const realms = status.data.realms || [0, 1];
             this.populateRealmSelects(realms);
         } catch (err) {
             console.error('Failed to load realms:', err);
@@ -253,11 +245,11 @@ class AdminDashboard {
             ]);
 
             // Update metrics
-            document.getElementById('totalRealms').textContent = (status.realms || []).length;
-            document.getElementById('totalResources').textContent = health.resources || '-';
-            document.getElementById('lastFetch').textContent = status.lastFetch ? this.formatTime(status.lastFetch) : 'Never';
-            document.getElementById('schedulerStatus').textContent = status.schedulerRunning ? 'Running' : 'Stopped';
-            document.getElementById('schedulerStatus').className = 'metric-value ' + (status.schedulerRunning ? 'running' : 'stopped');
+            document.getElementById('totalRealms').textContent = (status.data.realms || []).length;
+            document.getElementById('totalResources').textContent = health.data.resources || '-';
+            document.getElementById('lastFetch').textContent = status.data.lastFetch ? this.formatTime(status.data.lastFetch) : 'Never';
+            document.getElementById('schedulerStatus').textContent = status.data.schedulerRunning ? 'Running' : 'Stopped';
+            document.getElementById('schedulerStatus').className = 'metric-value ' + (status.data.schedulerRunning ? 'running' : 'stopped');
 
             // Load charts
             this.renderCharts(status, health);
@@ -272,8 +264,8 @@ class AdminDashboard {
         const fetchCtx = document.getElementById('fetchChart')?.getContext('2d');
         const realmCtx = document.getElementById('realmChart')?.getContext('2d');
 
-        if (fetchCtx) this.drawLineChart(fetchCtx, status.fetchHistory || []);
-        if (realmCtx) this.drawDoughnutChart(realmCtx, status.realms || []);
+        if (fetchCtx) this.drawLineChart(fetchCtx, status.data.fetchHistory || []);
+        if (realmCtx) this.drawDoughnutChart(realmCtx, status.data.realms || []);
     }
 
     drawLineChart(ctx, data) {
@@ -424,13 +416,13 @@ class AdminDashboard {
     async loadConfigSections() {
         try {
             const config = await this.api('/config');
-            const sections = ['formulas', 'schedules', 'featureFlags', 'macroIndexes', 'macroSettings', 'macroHistory', 'governmentOrders'];
-            
+            const sections = config.data.sections || ['formulas', 'schedules', 'featureFlags'];
+
             const container = document.getElementById('configSections');
             if (!container) return;
 
             container.innerHTML = sections.map(section => {
-                const values = config[section] || {};
+                const values = config.data[section] || {};
                 const fields = Object.entries(values).map(([key, value]) => {
                     const isBool = typeof value === 'boolean';
                     const isNumber = typeof value === 'number';
@@ -452,17 +444,21 @@ class AdminDashboard {
                 }).join('');
 
                 return `
-                    <div class="config-section" data-section="${section}">
+                    <form class="config-section" data-section="${section}">
                         <div class="config-section-header">
                             <h3>${section}</h3>
-                            <button class="btn btn-secondary btn-sm" onclick="admin.saveConfigSection('${section}')">Save</button>
+                            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
                         </div>
                         <div class="config-section-content">
                             ${fields}
                         </div>
-                    </div>
+                    </form>
                 `;
             }).join('');
+
+            container.querySelectorAll('.config-section').forEach(form => {
+                form.addEventListener('submit', (e) => this.saveConfigSection(e, form.dataset.section));
+            });
         } catch (err) {
             console.error('Failed to load config:', err);
         }
@@ -507,13 +503,13 @@ class AdminDashboard {
     async loadSchedulerStatus() {
         try {
             const status = await this.api('/status');
-            const running = status.schedulerRunning;
-            
+            const running = status.data.schedulerRunning;
+
             document.getElementById('schedulerState').textContent = running ? 'Running' : 'Stopped';
             document.getElementById('schedulerState').className = 'status-value ' + (running ? 'running' : 'stopped');
-            document.getElementById('currentCycle').textContent = status.cycle || 0;
-            document.getElementById('uptime').textContent = this.formatUptime(status.uptime || 0);
-            document.getElementById('nextRun').textContent = status.nextFetch || '-';
+            document.getElementById('currentCycle').textContent = status.data.cycle || 0;
+            document.getElementById('uptime').textContent = this.formatUptime(status.data.uptime || 0);
+            document.getElementById('nextRun').textContent = status.data.nextFetch || '-';
 
             document.getElementById('startBtn').disabled = running;
             document.getElementById('stopBtn').disabled = !running;
@@ -525,7 +521,7 @@ class AdminDashboard {
     async loadSchedulerConfig() {
         try {
             const cfg = await this.api('/config');
-            const schedules = cfg.schedules || {};
+            const schedules = cfg.data.schedules || {};
             
             const form = document.getElementById('schedulerConfigForm');
             if (!form) return;
@@ -569,7 +565,7 @@ class AdminDashboard {
     async controlScheduler(cmd) {
         try {
             const result = await this.api(`/actions/scheduler/${cmd}`, { method: 'POST' });
-            this.showToast(`Scheduler ${cmd}: ${result.status}`);
+            this.showToast(`Scheduler ${cmd}: ${result.data.status}`);
             this.loadSchedulerStatus();
         } catch (err) {
             this.showToast(err.message, 'error');
@@ -583,12 +579,12 @@ class AdminDashboard {
             if (!container) return;
 
             const metrics = [
-                { label: 'API Status', value: health.api?.ok ? 'OK' : 'Failed', class: health.api?.ok ? 'ok' : 'error' },
-                { label: 'Database', value: health.database?.ok ? 'OK' : 'Failed', class: health.database?.ok ? 'ok' : 'error' },
-                { label: 'Cache', value: health.cache?.ok ? 'OK' : 'Failed', class: health.cache?.ok ? 'ok' : 'error' },
-                { label: 'Scheduler', value: health.scheduler?.ok ? 'OK' : 'Failed', class: health.scheduler?.ok ? 'ok' : 'error' },
-                { label: 'Memory Usage', value: health.memory ? `${(health.memory.heapUsed / 1024 / 1024).toFixed(1)} MB` : '-', class: 'ok' },
-                { label: 'Uptime', value: this.formatUptime(health.uptime || 0), class: 'ok' },
+                { label: 'API Status', value: health.data.api?.ok ? 'OK' : 'Failed', class: health.data.api?.ok ? 'ok' : 'error' },
+                { label: 'Database', value: health.data.database?.ok ? 'OK' : 'Failed', class: health.data.database?.ok ? 'ok' : 'error' },
+                { label: 'Cache', value: health.data.cache?.ok ? 'OK' : 'Failed', class: health.data.cache?.ok ? 'ok' : 'error' },
+                { label: 'Scheduler', value: health.data.scheduler?.ok ? 'OK' : 'Failed', class: health.data.scheduler?.ok ? 'ok' : 'error' },
+                { label: 'Memory Usage', value: health.data.memory ? `${(health.data.memory.heapUsed / 1024 / 1024).toFixed(1)} MB` : '-', class: 'ok' },
+                { label: 'Uptime', value: this.formatUptime(health.data.uptime || 0), class: 'ok' },
             ];
 
             container.innerHTML = metrics.map(m => `
@@ -651,7 +647,7 @@ class AdminDashboard {
 
         try {
             const health = await this.api('/health');
-            const logs = health.recentLogs || [];
+            const logs = health.data.recentLogs || [];
             
             container.innerHTML = logs.map(l => `
                 <div class="log-entry">
