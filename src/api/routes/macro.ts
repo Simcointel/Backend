@@ -91,218 +91,244 @@ function limitEntries(entries: HistoryEntry[], limit?: string): HistoryEntry[] {
 }
 
 export async function handleMacroHistory(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
-  const r = parseRealmParam(realm);
-  if (r === null) return sendError(res, 400, "Invalid realm");
+  try {
+    const r = parseRealmParam(realm);
+    if (r === null) return sendError(res, 400, "Invalid realm");
 
-  const url = new URL(req.url || "", getBaseUrl(req));
-  const from = url.searchParams.get("from") || undefined;
-  const to = url.searchParams.get("to") || undefined;
-  const limit = url.searchParams.get("limit") || undefined;
+    const url = new URL(req.url || "", getBaseUrl(req));
+    const from = url.searchParams.get("from") || undefined;
+    const to = url.searchParams.get("to") || undefined;
+    const limit = url.searchParams.get("limit") || undefined;
 
-  const activeYears = loadAllYears(r);
-  const archivedYears = loadArchivedYears(r);
-  const allYears = [...activeYears, ...archivedYears];
+    const activeYears = loadAllYears(r);
+    const archivedYears = loadArchivedYears(r);
+    const allYears = [...activeYears, ...archivedYears];
 
-  let allEntries: HistoryEntry[] = [];
-  for (const yf of allYears) {
-    allEntries = allEntries.concat(yf.e);
+    let allEntries: HistoryEntry[] = [];
+    for (const yf of allYears) {
+      allEntries = allEntries.concat(yf.e);
+    }
+
+    allEntries = filterByDateRange(allEntries, from, to);
+    allEntries = limitEntries(allEntries, limit);
+
+    sendSuccess(res, {
+      realm: r,
+      totalEntries: allEntries.length,
+      yearsAvailable: allYears.map((y) => y.y),
+      history: allEntries,
+    });
+  } catch (err) {
+    sendError(res, 500, err instanceof Error ? err.message : "Failed to load macro history");
   }
-
-  allEntries = filterByDateRange(allEntries, from, to);
-  allEntries = limitEntries(allEntries, limit);
-
-  sendSuccess(res, {
-    realm: r,
-    totalEntries: allEntries.length,
-    yearsAvailable: allYears.map((y) => y.y),
-    history: allEntries,
-  });
 }
 
 export async function handleMacroIndexes(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
-  const r = parseRealmParam(realm);
-  if (r === null) return sendError(res, 400, "Invalid realm");
-
-  const dir = resolve(getDataRoot(), "aggregates", "indexes", `realm-${r}`);
-  if (!existsSync(dir)) return sendSuccess(res, { realm: r, indexes: [] });
-
-  let files: string[];
   try {
-    files = readdirSync(dir)
-      .filter((f) => f.startsWith("price-indexes-") && f.endsWith(".json"))
-      .sort()
-      .reverse();
-  } catch {
-    return sendError(res, 500, "Failed to read indexes directory");
-  }
+    const r = parseRealmParam(realm);
+    if (r === null) return sendError(res, 400, "Invalid realm");
 
-  const url = new URL(req.url || "", getBaseUrl(req));
-  const limit = parseInt(url.searchParams.get("limit") || "100", 10);
+    const dir = resolve(getDataRoot(), "aggregates", "indexes", `realm-${r}`);
+    if (!existsSync(dir)) return sendSuccess(res, { realm: r, indexes: [] });
 
-  const selected = files.slice(0, Math.min(limit, files.length));
-  const indexes = selected.map((f) => {
-    try {
-      return JSON.parse(readFileSync(join(dir, f), "utf-8"));
-    } catch {
-      return null;
-    }
-  }).filter(Boolean);
-
-  sendSuccess(res, { realm: r, total: files.length, indexes });
-}
-
-export async function handleMacroInflation(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
-  const r = parseRealmParam(realm);
-  if (r === null) return sendError(res, 400, "Invalid realm");
-
-  const dir = resolve(getDataRoot(), "aggregates", "inflation", `realm-${r}`);
-  if (!existsSync(dir)) return sendSuccess(res, { realm: r, inflation: [] });
-
-  let files: string[];
-  try {
-    files = readdirSync(dir)
-      .filter((f) => f.startsWith("inflation-report-") && f.endsWith(".json"))
-      .sort()
-      .reverse();
-  } catch {
-    return sendError(res, 500, "Failed to read inflation directory");
-  }
-
-  const url = new URL(req.url || "", getBaseUrl(req));
-  const limit = parseInt(url.searchParams.get("limit") || "100", 10);
-
-  const selected = files.slice(0, Math.min(limit, files.length));
-  const inflation = selected.map((f) => {
-    try {
-      return JSON.parse(readFileSync(join(dir, f), "utf-8"));
-    } catch {
-      return null;
-    }
-  }).filter(Boolean);
-
-  sendSuccess(res, { realm: r, total: files.length, inflation });
-}
-
-export async function handleMacroPhases(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
-  const r = parseRealmParam(realm);
-  if (r === null) return sendError(res, 400, "Invalid realm");
-
-  const allYears = loadAllYears(r);
-  const archivedYears = loadArchivedYears(r);
-  const allYearsFiles = [...allYears, ...archivedYears];
-
-  const phases: Array<{ date: string; phase: string }> = [];
-  const seen = new Set<string>();
-
-  for (const yf of allYearsFiles) {
-    for (const e of yf.e) {
-      if (seen.has(e.d)) continue;
-      seen.add(e.d);
-      if (e.ph && e.ph !== "") {
-        phases.push({ date: e.d, phase: e.ph });
-      }
-    }
-  }
-
-  phases.sort((a, b) => a.date.localeCompare(b.date));
-
-  const transitions: Array<{ from: string; to: string; date: string }> = [];
-  for (let i = 1; i < phases.length; i++) {
-    if (phases[i].phase !== phases[i - 1].phase) {
-      transitions.push({ from: phases[i - 1].phase, to: phases[i].phase, date: phases[i].date });
-    }
-  }
-
-  sendSuccess(res, {
-    realm: r,
-    totalDays: phases.length,
-    currentPhase: phases.length > 0 ? phases[phases.length - 1].phase : null,
-    transitions,
-    phases,
-  });
-}
-
-export async function handleMacroLatest(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
-  const r = parseRealmParam(realm);
-  if (r === null) return sendError(res, 400, "Invalid realm");
-
-
-  const allYears = loadAllYears(r);
-  const archivedYears = loadArchivedYears(r);
-  const allYearsFiles = [...allYears, ...archivedYears];
-
-  let latestEntry: HistoryEntry | null = null;
-  for (const yf of allYearsFiles) {
-    if (yf.e.length > 0) {
-      const last = yf.e[yf.e.length - 1];
-      if (!latestEntry || last.d > latestEntry.d) {
-        latestEntry = last;
-      }
-    }
-  }
-
-  const indexesDir = resolve(getDataRoot(), "aggregates", "indexes", `realm-${r}`);
-  let latestIndexes: unknown = null;
-  if (existsSync(indexesDir)) {
     let files: string[];
     try {
-      files = readdirSync(indexesDir)
+      files = readdirSync(dir)
         .filter((f) => f.startsWith("price-indexes-") && f.endsWith(".json"))
         .sort()
         .reverse();
     } catch {
-      files = [];
+      return sendError(res, 500, "Failed to read indexes directory");
     }
-    if (files.length > 0) {
-      try {
-        latestIndexes = JSON.parse(readFileSync(join(indexesDir, files[0]), "utf-8"));
-      } catch { /* ignore */ }
-    }
-  }
 
-  const inflationDir = resolve(getDataRoot(), "aggregates", "inflation", `realm-${r}`);
-  let latestInflation: unknown = null;
-  if (existsSync(inflationDir)) {
+    const url = new URL(req.url || "", getBaseUrl(req));
+    const limit = parseInt(url.searchParams.get("limit") || "100", 10);
+
+    const selected = files.slice(0, Math.min(limit, files.length));
+    const indexes = selected.map((f) => {
+      try {
+        return JSON.parse(readFileSync(join(dir, f), "utf-8"));
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
+
+    sendSuccess(res, { realm: r, total: files.length, indexes });
+  } catch (err) {
+    sendError(res, 500, err instanceof Error ? err.message : "Failed to load indexes");
+  }
+}
+
+export async function handleMacroInflation(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
+  try {
+    const r = parseRealmParam(realm);
+    if (r === null) return sendError(res, 400, "Invalid realm");
+
+    const dir = resolve(getDataRoot(), "aggregates", "inflation", `realm-${r}`);
+    if (!existsSync(dir)) return sendSuccess(res, { realm: r, inflation: [] });
+
     let files: string[];
     try {
-      files = readdirSync(inflationDir)
+      files = readdirSync(dir)
         .filter((f) => f.startsWith("inflation-report-") && f.endsWith(".json"))
         .sort()
         .reverse();
     } catch {
-      files = [];
+      return sendError(res, 500, "Failed to read inflation directory");
     }
-    if (files.length > 0) {
-      try {
-        latestInflation = JSON.parse(readFileSync(join(inflationDir, files[0]), "utf-8"));
-      } catch { /* ignore */ }
-    }
-  }
 
-  sendSuccess(res, {
-    realm: r,
-    latestHistory: latestEntry,
-    latestIndexes,
-    latestInflation,
-  });
+    const url = new URL(req.url || "", getBaseUrl(req));
+    const limit = parseInt(url.searchParams.get("limit") || "100", 10);
+
+    const selected = files.slice(0, Math.min(limit, files.length));
+    const inflation = selected.map((f) => {
+      try {
+        return JSON.parse(readFileSync(join(dir, f), "utf-8"));
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
+
+    sendSuccess(res, { realm: r, total: files.length, inflation });
+  } catch (err) {
+    sendError(res, 500, err instanceof Error ? err.message : "Failed to load inflation");
+  }
+}
+
+export async function handleMacroPhases(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
+  try {
+    const r = parseRealmParam(realm);
+    if (r === null) return sendError(res, 400, "Invalid realm");
+
+    const allYears = loadAllYears(r);
+    const archivedYears = loadArchivedYears(r);
+    const allYearsFiles = [...allYears, ...archivedYears];
+
+    const phases: Array<{ date: string; phase: string }> = [];
+    const seen = new Set<string>();
+
+    for (const yf of allYearsFiles) {
+      for (const e of yf.e) {
+        if (seen.has(e.d)) continue;
+        seen.add(e.d);
+        if (e.ph && e.ph !== "") {
+          phases.push({ date: e.d, phase: e.ph });
+        }
+      }
+    }
+
+    phases.sort((a, b) => a.date.localeCompare(b.date));
+
+    const transitions: Array<{ from: string; to: string; date: string }> = [];
+    for (let i = 1; i < phases.length; i++) {
+      if (phases[i].phase !== phases[i - 1].phase) {
+        transitions.push({ from: phases[i - 1].phase, to: phases[i].phase, date: phases[i].date });
+      }
+    }
+
+    sendSuccess(res, {
+      realm: r,
+      totalDays: phases.length,
+      currentPhase: phases.length > 0 ? phases[phases.length - 1].phase : null,
+      transitions,
+      phases,
+    });
+  } catch (err) {
+    sendError(res, 500, err instanceof Error ? err.message : "Failed to load phases");
+  }
+}
+
+export async function handleMacroLatest(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
+  try {
+
+    const r = parseRealmParam(realm);
+    if (r === null) return sendError(res, 400, "Invalid realm");
+  
+  
+    const allYears = loadAllYears(r);
+    const archivedYears = loadArchivedYears(r);
+    const allYearsFiles = [...allYears, ...archivedYears];
+  
+    let latestEntry: HistoryEntry | null = null;
+    for (const yf of allYearsFiles) {
+      if (yf.e.length > 0) {
+        const last = yf.e[yf.e.length - 1];
+        if (!latestEntry || last.d > latestEntry.d) {
+          latestEntry = last;
+        }
+      }
+    }
+  
+    const indexesDir = resolve(getDataRoot(), "aggregates", "indexes", `realm-${r}`);
+    let latestIndexes: unknown = null;
+    if (existsSync(indexesDir)) {
+      let files: string[];
+      try {
+        files = readdirSync(indexesDir)
+          .filter((f) => f.startsWith("price-indexes-") && f.endsWith(".json"))
+          .sort()
+          .reverse();
+      } catch {
+        files = [];
+      }
+      if (files.length > 0) {
+        try {
+          latestIndexes = JSON.parse(readFileSync(join(indexesDir, files[0]), "utf-8"));
+        } catch { /* ignore */ }
+      }
+    }
+  
+    const inflationDir = resolve(getDataRoot(), "aggregates", "inflation", `realm-${r}`);
+    let latestInflation: unknown = null;
+    if (existsSync(inflationDir)) {
+      let files: string[];
+      try {
+        files = readdirSync(inflationDir)
+          .filter((f) => f.startsWith("inflation-report-") && f.endsWith(".json"))
+          .sort()
+          .reverse();
+      } catch {
+        files = [];
+      }
+      if (files.length > 0) {
+        try {
+          latestInflation = JSON.parse(readFileSync(join(inflationDir, files[0]), "utf-8"));
+        } catch { /* ignore */ }
+      }
+    }
+  
+    sendSuccess(res, {
+      realm: r,
+      latestHistory: latestEntry,
+      latestIndexes,
+      latestInflation,
+    });
+  
+  } catch (err) {
+    sendError(res, 500, err instanceof Error ? err.message : "Failed to load latest macro data");
+  }
 }
 
 export async function handleMacroListHistory(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const cfg = loadConfig();
-  const result: Record<string, { years: number[]; totalEntries: number }> = {};
+  try {
+    const cfg = loadConfig();
+    const result: Record<string, { years: number[]; totalEntries: number }> = {};
 
-  for (const realm of cfg.simco.realms) {
-    const allYears = loadAllYears(realm);
-    const archivedYears = loadArchivedYears(realm);
-    let total = 0;
-    for (const yf of [...allYears, ...archivedYears]) {
-      total += yf.e.length;
+    for (const realm of cfg.simco.realms) {
+      const allYears = loadAllYears(realm);
+      const archivedYears = loadArchivedYears(realm);
+      let total = 0;
+      for (const yf of [...allYears, ...archivedYears]) {
+        total += yf.e.length;
+      }
+      result[`realm-${realm}`] = {
+        years: [...allYears, ...archivedYears].map((y) => y.y).sort(),
+        totalEntries: total,
+      };
     }
-    result[`realm-${realm}`] = {
-      years: [...allYears, ...archivedYears].map((y) => y.y).sort(),
-      totalEntries: total,
-    };
-  }
 
-  sendSuccess(res, result);
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, 500, err instanceof Error ? err.message : "Failed to list macro history");
+  }
 }

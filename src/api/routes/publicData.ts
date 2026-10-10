@@ -29,17 +29,14 @@ export interface MacroHistoryEntry {
   ac?: number;
   bs?: number;
   tb?: number;
-  [key: string]: unknown;
 }
 
 export interface MacroIndexEntry {
   ix: Record<string, { v: number }>;
-  [key: string]: unknown;
 }
 
 export interface MacroInflationEntry {
   in: Record<string, { ch: number }>;
-  [key: string]: unknown;
 }
 
 function indexDir(subDir: string): { latest: string | null } {
