@@ -53,10 +53,10 @@ export async function withCache<T>(
   ttlMs: number,
   fn: () => Promise<T>
 ): Promise<T> {
-  const cached = cache.get<T>(key);
-  if (cached !== null) {
+  if (cache.has(key)) {
+    const cached = cache.get<T>(key);
     logger.debug(`Cache hit: ${key}`);
-    return cached;
+    return cached as T;
   }
   const result = await fn();
   cache.set(key, result, ttlMs);
