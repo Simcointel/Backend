@@ -126,6 +126,7 @@ export async function executeAction(action: string, params?: Record<string, unkn
       const configPaths = [
         resolve(process.cwd(), "config"),
         resolve(__dirname, "..", "..", "config"),
+        resolve(__dirname, "..", "..", "..", "config"),
       ];
 
       const configDir = configPaths[0];

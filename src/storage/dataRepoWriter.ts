@@ -3,6 +3,7 @@ import { readdir, readFile } from "fs/promises";
 import { join, resolve, relative } from "path";
 import { logger } from "../logging/logger.js";
 import { StorageError } from "../errors/errors.js";
+import { getGithubToken } from "../api/connectAuth.js";
 
 export interface SnapshotPayload {
   timestamp: string;
@@ -77,9 +78,10 @@ export class DataRepoWriter implements IDataRepoWriter {
   }
 
   async commitAndPush(message: string): Promise<void> {
-    const { owner, repo, branch, githubToken, path: repoPath } = this.config;
+    const { owner, repo, branch, path: repoPath } = this.config;
+    const githubToken = await getGithubToken();
     if (!githubToken) {
-      logger.error("GITHUB_TOKEN not set -- cannot push to data repo");
+      logger.error("No GitHub token available -- cannot push to data repo");
       return;
     }
 

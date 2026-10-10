@@ -9,6 +9,7 @@ import { runCompression } from "../../jobs/compress.js";
 import { runPublicExportPipeline } from "../../jobs/publicExportPipeline.js";
 import { runAllProfitMargins } from "../../jobs/profitMargins.js";
 import { DataRepoWriter } from "../../storage/dataRepoWriter.js";
+import { getGithubToken } from "../connectAuth.js";
 import { recordFetchResult } from "../../jobs/failureTracker.js";
 
 function checkSecret(req: IncomingMessage): boolean {
@@ -33,9 +34,9 @@ export async function handleTriggerFetch(req: IncomingMessage, res: ServerRespon
   }
 
   const cfg = loadConfig();
-  const token = cfg.dataRepo.githubToken;
+  const token = await getGithubToken();
   if (!token) {
-    sendError(res, 400, "GITHUB_TOKEN not configured");
+    sendError(res, 400, "No GitHub token available");
     return;
   }
 
