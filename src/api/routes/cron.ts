@@ -1,4 +1,5 @@
 import { IncomingMessage, ServerResponse } from "http";
+import { timingSafeEqual } from "crypto";
 import { sendSuccess, sendError } from "../middleware.js";
 import { loadConfig } from "../../config/index.js";
 import { logger } from "../../logging/logger.js";

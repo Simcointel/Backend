@@ -12,7 +12,9 @@ class SimpleCache {
   set<T>(key: string, data: T, ttlMs: number): void {
     if (this.cache.size >= SimpleCache.MAX_SIZE) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
     }
     this.cache.set(key, {
       data,

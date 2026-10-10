@@ -6,6 +6,8 @@ import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
 import { SimcoToolsClient, type RealmSummaryEntry } from "../api/simcoTools.js";
 
+const MAX_PAGES = 1000;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface BackfillState {

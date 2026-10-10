@@ -27,16 +27,25 @@ function getSnapshotDir(dataPath: string, realm: string, type: string): string {
 export async function handleListSnapshots(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const cfg = loadConfig();
   const dataPath = resolve(cfg.dataRepo.path);
+
+  const url = new URL(req.url || "/", "http://localhost");
+  const type = url.searchParams.get("type") || "market";
+
+  if (!isValidSnapshotType(type)) {
+    return sendError(res, 400, `Invalid snapshot type: ${type}`);
+  }
+
+  const prefix = type === "government-orders" ? "government-orders-" : "market-snapshot-";
   const result: Record<string, { count: number; latest: string | null }> = {};
 
   for (const realm of cfg.simco.realms) {
-    const dir = getSnapshotDir(dataPath, String(realm), "market");
+    const dir = getSnapshotDir(dataPath, String(realm), type);
     if (!existsSync(dir)) {
       result[`realm-${realm}`] = { count: 0, latest: null };
       continue;
     }
     const files = readdirSync(dir)
-      .filter((f) => f.startsWith("market-snapshot-") && f.endsWith(".json"))
+      .filter((f) => f.startsWith(prefix) && f.endsWith(".json"))
       .sort()
       .reverse();
     result[`realm-${realm}`] = {

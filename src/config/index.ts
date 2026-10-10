@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { createRequire } from "module";
 import { loadEnv, envString, envNumber } from "./env.js";
 import type {
   SimcoIntelConfig,
@@ -183,6 +184,7 @@ export function loadConfig(): SimcoIntelConfig {
 export function reloadConfig(): SimcoIntelConfig {
   console.log("[reloadConfig] Start - clearing cache");
   cached = null;
+  const require = createRequire(import.meta.url);
   const { resetDataRepoWriter } = require("../storage/dataRepoWriter");
   resetDataRepoWriter();
   console.log("[reloadConfig] Calling loadConfig");
