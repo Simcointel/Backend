@@ -4,11 +4,14 @@ async function getVercelConnectToken(): Promise<string | null> {
   try {
     const { getToken } = await import("@vercel/connect");
     const connector = process.env.VERCEL_CONNECT_GITHUB ?? "github/default";
+    console.log(`[connectAuth] Trying Vercel Connect with connector: ${connector}`);
     const token = await getToken(connector, {
       subject: { type: "app" },
     });
+    console.log(`[connectAuth] Vercel Connect returned: ${token ? `${token.length} chars` : "null"}`);
     return token ?? null;
-  } catch {
+  } catch (err) {
+    console.error(`[connectAuth] Vercel Connect failed:`, err instanceof Error ? err.message : String(err));
     return null;
   }
 }
