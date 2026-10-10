@@ -7,7 +7,7 @@ import {
   loadMacroIndexes,
   loadMacroInflation,
 } from "./publicData.js";
-import { getRateLimitStats } from "../rateLimiter.js";
+
 
 
 export function handlePublicMacro(req: IncomingMessage, res: ServerResponse, _params: Record<string, string>, _body: unknown, query: URLSearchParams): void {

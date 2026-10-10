@@ -255,10 +255,6 @@ export async function handleMacroLatest(req: IncomingMessage, res: ServerRespons
   });
 }
 
-export async function handleMacroState(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
-  sendSuccess(res, { ok: true, message: "Macro state moved to public export" });
-}
-
 export async function handleMacroListHistory(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const cfg = loadConfig();
   const result: Record<string, { years: number[]; totalEntries: number }> = {};

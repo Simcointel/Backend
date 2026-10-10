@@ -8,6 +8,8 @@ import { SimcoToolsClient, type RealmSummaryEntry } from "../api/simcoTools.js";
 
 const MAX_PAGES = 1000;
 
+const MAX_PAGES = 1000;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface BackfillState {
@@ -155,6 +157,7 @@ export async function runBackfill(realm: number): Promise<HistorySyncResult> {
   }
 
   while (keepGoing) {
+    if (page >= MAX_PAGES) break;
     let response;
     try {
       response = await client.getRealmSummaries(page, cfg.macroHistory.historyPageSize);

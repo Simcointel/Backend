@@ -24,28 +24,21 @@ export interface AdminAction {
 
 export async function executeAction(action: string, params?: Record<string, unknown>): Promise<AdminAction> {
   const cfg = loadConfig();
-  console.log(`[executeAction] START action=${action}`);
 
   switch (action) {
     case "fetch":
-      console.log(`[executeAction] fetch: calling runFetch`);
       const fetchResult = await runFetch();
-      console.log(`[executeAction] fetch: runFetch returned`);
       return { action, ok: true, result: fetchResult };
 
     case "aggregate": {
       const realm = (params?.realm as number) ?? cfg.simco.realms[0];
-      console.log(`[executeAction] aggregate: realm=${realm}`);
       const result = await runAggregation(cfg.dataRepo.path, realm);
-      console.log(`[executeAction] aggregate: runAggregation returned`);
       return { action, ok: result.ok, result };
     }
 
     case "cleanup": {
       const dryRun = (params?.dryRun as boolean) ?? false;
-      console.log(`[executeAction] cleanup: dryRun=${dryRun}`);
       const result = retentionCleanup(cfg.dataRepo.path, cfg.schedules.snapshotRetentionDays, dryRun);
-      console.log(`[executeAction] cleanup: retentionCleanup returned`);
       return { action, ok: result.ok, result };
     }
 
@@ -53,55 +46,40 @@ export async function executeAction(action: string, params?: Record<string, unkn
       const realm = (params?.realm as number) ?? cfg.simco.realms[0];
       const retentionDays = (params?.retentionDays as number) ?? 1;
       const dryRun = (params?.dryRun as boolean) ?? false;
-      console.log(`[executeAction] compress: realm=${realm}, retentionDays=${retentionDays}, dryRun=${dryRun}`);
       const result = runCompression(cfg.dataRepo.path, realm, retentionDays, dryRun);
-      console.log(`[executeAction] compress: runCompression returned`);
       return { action, ok: result.ok, result };
     }
 
     case "government-orders": {
-      console.log(`[executeAction] government-orders: calling runAllGovernmentOrders`);
       const result = await runAllGovernmentOrders();
-      console.log(`[executeAction] government-orders: runAllGovernmentOrders returned`);
       // Push to data repo so web frontend can access via GitHub CDN
       try {
         const exportResult = await runPublicExportPipeline();
-        console.log(`[executeAction] government-orders: export pipeline returned ${exportResult.files.length} files`);
         return { action, ok: result.ok && exportResult.ok, result: { report: result.reports ?? result.results, errors: exportResult.errors } };
       } catch (exportErr) {
-        console.error(`[executeAction] government-orders: export pipeline failed`, exportErr);
         return { action, ok: false, result: { report: result.reports ?? result.results, errors: [exportErr instanceof Error ? exportErr.message : String(exportErr)] } };
       }
     }
 
     case "public-export": {
-      console.log(`[executeAction] public-export: calling runPublicExportPipeline`);
       const result = await runPublicExportPipeline();
-      console.log(`[executeAction] public-export: runPublicExportPipeline returned`);
       return { action, ok: result.ok, result };
     }
 
     case "status": {
-      console.log(`[executeAction] status: calling generateHealthReport`);
       const health = await generateHealthReport();
-      console.log(`[executeAction] status: generateHealthReport returned`);
       const failures = getFailureStatus(cfg.schedules.consecutiveFailureThreshold);
-      console.log(`[executeAction] status: getFailureStatus returned`);
       return { action, ok: true, result: { health, failures, realms: cfg.simco.realms } };
     }
 
     case "reload-config": {
-      console.log(`[executeAction] reload-config: calling reloadConfig`);
       reloadConfig();
-      console.log(`[executeAction] reload-config: reloadConfig returned`);
       logger.info("Config reloaded");
       return { action, ok: true, result: "config reloaded" };
     }
 
     case "get-config": {
-      console.log(`[executeAction] get-config: start`);
       const { dataRepo, logging, schedules, formulas, featureFlags, alerts } = cfg;
-      console.log(`[executeAction] get-config: building result`);
       const result = {
         action,
         ok: true,
@@ -112,7 +90,6 @@ export async function executeAction(action: string, params?: Record<string, unkn
           dataRepo: { ...dataRepo, githubToken: dataRepo.githubToken ? "(set)" : "(empty)" },
         },
       };
-      console.log(`[executeAction] get-config: returning result`);
       return result;
     }
 

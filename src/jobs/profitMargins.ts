@@ -309,8 +309,8 @@ export async function computeProfitMargins(realm: number): Promise<ProfitMargins
       entries.length = 0;
       entries.push(...withProjections);
     }
-  } catch {
-    logger.debug(`[realm ${realm}] Could not compute projections`);
+  } catch (err) {
+    logger.warn(`[realm ${realm}] Could not compute projections: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const report: ProfitMarginsReport = {

@@ -24,11 +24,11 @@ export interface HealthReport {
 export async function generateHealthReport(): Promise<HealthReport> {
   const ts = new Date().toISOString();
 
-  const cfg = loadConfig();
-
+  let cfg: SimcoIntelConfig;
   let configOk = true;
   let configDetail = "Loaded OK";
   try {
+    cfg = loadConfig();
     configDetail = `realms=[${cfg.simco.realms.join(",")}], logLevel=${cfg.logging.level}`;
   } catch (err) {
     configOk = false;

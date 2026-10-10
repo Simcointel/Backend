@@ -18,8 +18,8 @@ export interface PublicMacro {
     bondsSold: number | null;
     totalBuildings: number | null;
   };
-  latestIndexes: { cpi: number; coreCpi: number; gdp: number } | null;
-  latestInflation: { cpiRate: number; coreCpiRate: number; gdpGrowth: number } | null;
+  latestIndexes: { cpi: number | null; coreCpi: number | null; gdp: number | null } | null;
+  latestInflation: { cpiRate: number | null; coreCpiRate: number | null; gdpGrowth: number | null } | null;
   generatedAt: string;
 }
 
@@ -125,18 +125,18 @@ export function loadLatestMacroData(realm: number): PublicMacro {
   return result;
 }
 
-export function loadMacroHistory(realm: number, limit = 120): { entries: unknown[]; total: number } {
+export function loadMacroHistory(realm: number, limit = 120): { entries: MacroHistoryEntry[]; total: number } {
   try {
     const dir = macroHistoryDir(realm);
     if (!existsSync(dir)) return { entries: [], total: 0 };
     const yearFiles = readdirSync(dir).filter(f => /^\d{4}\.json$/.test(f)).sort().reverse();
-    const entries: Record<string, unknown>[] = [];
+    const entries: MacroHistoryEntry[] = [];
     for (const yf of yearFiles) {
       if (entries.length >= limit) break;
       try {
-        const file = JSON.parse(readFileSync(resolve(dir, yf), "utf-8"));
+        const file = JSON.parse(readFileSync(resolve(dir, yf), "utf-8")) as { e?: MacroHistoryEntry[] };
         if (file.e) {
-          for (const e of (file.e as Record<string, unknown>[]).slice().reverse()) {
+          for (const e of file.e.slice().reverse()) {
             if (entries.length >= limit) break;
             entries.push(e);
           }
@@ -147,12 +147,12 @@ export function loadMacroHistory(realm: number, limit = 120): { entries: unknown
   } catch { return { entries: [], total: 0 }; }
 }
 
-export function loadMacroIndexes(realm: number, limit = 30): { indexes: unknown[]; total: number } {
-  const indexes = readAllFiles(indexDirPath(realm), limit);
+export function loadMacroIndexes(realm: number, limit = 30): { indexes: MacroIndexEntry[]; total: number } {
+  const indexes = readAllFiles<MacroIndexEntry>(indexDirPath(realm), limit);
   return { indexes, total: indexes.length };
 }
 
-export function loadMacroInflation(realm: number, limit = 30): { inflation: unknown[]; total: number } {
-  const inflation = readAllFiles(inflationDirPath(realm), limit);
+export function loadMacroInflation(realm: number, limit = 30): { inflation: MacroInflationEntry[]; total: number } {
+  const inflation = readAllFiles<MacroInflationEntry>(inflationDirPath(realm), limit);
   return { inflation, total: inflation.length };
 }

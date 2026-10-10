@@ -231,14 +231,14 @@ export class SimcoToolsClient {
     throw new ApiError("Unexpected government orders response shape");
   }
 
-  async getMarketCandlesticks(resourceId: number, quality: number, _startDate?: string, _endDate?: string): Promise<any[]> {
+  async getMarketCandlesticks(resourceId: number, quality: number, _startDate?: string, _endDate?: string): Promise<MarketCandlestick[]> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
     try {
       const data = await this.fetchJson<unknown>(`/market/resources/${resourceId}/${quality}/candlesticks`, undefined, controller.signal);
-      if (Array.isArray(data)) return data;
-      if (data && typeof data === "object" && "candlesticks" in data) return (data as { candlesticks: any[] }).candlesticks;
-      if (data && typeof data === "object" && "results" in data) return (data as { results: any[] }).results;
+      if (Array.isArray(data)) return data as MarketCandlestick[];
+      if (data && typeof data === "object" && "candlesticks" in data) return (data as { candlesticks: MarketCandlestick[] }).candlesticks;
+      if (data && typeof data === "object" && "results" in data) return (data as { results: MarketCandlestick[] }).results;
       throw new ApiError(`Unexpected candlesticks response shape for resource ${resourceId} quality ${quality}`);
     } finally {
       clearTimeout(timer);
