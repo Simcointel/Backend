@@ -146,13 +146,13 @@ export function loadConfig(): SimcoIntelConfig {
       if (mi) macroIndexes = mi;
 
       const ms = loadJson<MacroSettings>(basePath, "macroSettings");
-      if (ms) macroSettings = mergeWithDefaults(ms, macroSettingsDefaults);
+      if (ms) macroSettings = deepMerge(macroSettingsDefaults, ms);
 
       const mh = loadJson<MacroHistoryConfig>(basePath, "macroHistory");
-      if (mh) macroHistory = mergeWithDefaults(mh, macroHistoryDefaults);
+      if (mh) macroHistory = deepMerge(macroHistoryDefaults, mh);
 
       const go = loadJson<GovernmentOrdersConfig>(basePath, "governmentOrders");
-      if (go) governmentOrders = mergeWithDefaults(go, governmentOrdersDefaults);
+      if (go) governmentOrders = deepMerge(governmentOrdersDefaults, go);
     }
 
   const simco: SimcoConfig = {

@@ -33,6 +33,10 @@ export async function handleListArchives(req: IncomingMessage, res: ServerRespon
 }
 
 export async function handleListRealmArchives(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
+  if (!isValidRealm(realm)) {
+    return sendError(res, 400, "Invalid realm parameter");
+  }
+
   const cfg = loadConfig();
   const dataPath = resolve(cfg.dataRepo.path);
   const dir = resolve(dataPath, "archives", "market", `realm-${realm}`);

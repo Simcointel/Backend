@@ -49,9 +49,13 @@ export async function handleListSnapshots(req: IncomingMessage, res: ServerRespo
 }
 
 export async function handleListRealmSnapshots(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
+  if (!isValidRealm(realm)) {
+    return sendError(res, 400, "Invalid realm parameter");
+  }
+
   const cfg = loadConfig();
   const dataPath = resolve(cfg.dataRepo.path);
-  
+
   // Get type from query params (default: market)
   const url = new URL(req.url || "/", "http://localhost");
   const type = url.searchParams.get("type") || "market";
@@ -86,9 +90,13 @@ export async function handleListRealmSnapshots(req: IncomingMessage, res: Server
 }
 
 export async function handleGetSnapshot(req: IncomingMessage, res: ServerResponse, realm: string, file: string): Promise<void> {
+  if (!isValidRealm(realm)) {
+    return sendError(res, 400, "Invalid realm parameter");
+  }
+
   const cfg = loadConfig();
   const dataPath = resolve(cfg.dataRepo.path);
-  
+
   // Get type from query params (default: market)
   const url = new URL(req.url || "/", "http://localhost");
   const type = url.searchParams.get("type") || "market";
