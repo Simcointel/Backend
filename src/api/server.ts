@@ -87,7 +87,6 @@ function buildRouter(): Router {
 
     // Debug: test POST route
     r.post("/api/test-post", (req, res, params, body) => {
-      console.log("[TEST-POST] Received POST to /api/test-post");
       sendSuccess(res, { received: true, body });
     });
 
@@ -201,17 +200,12 @@ export function createApp(): Express {
 
   // Parse JSON bodies for all routes
   app.use((req: Request, res: Response, next: NextFunction) => {
-    console.log(`[MIDDLEWARE] express.json() for ${req.method} ${req.url}`);
     next();
   });
 
   app.use(express.json({ limit: '1mb' }));
 
-    // Debug: log request body after parsing
     app.use((req: Request, res: Response, next: NextFunction) => {
-      if (req.method === "POST" || req.method === "PUT") {
-        console.log(`[BODY-PARSED] ${req.method} ${req.url} body=`, JSON.stringify(req.body));
-      }
       next();
     });
 
@@ -253,7 +247,6 @@ export function createApp(): Express {
 
   app.use(async (req: Request, res: Response, next: NextFunction) => {
         requestLogger(req, res);
-        console.log(`[SERVER] ${req.method} ${req.url}`);
 
         const url = req.url || "/";
         const baseUrl = getBaseUrl(req);
@@ -262,25 +255,17 @@ export function createApp(): Express {
           const match = router.match(req.method || "GET", url, baseUrl);
 
           if (!match) {
-            console.log(`[SERVER] No match for ${req.method} ${url}`);
             return sendError(res, 404, `No route: ${req.method} ${new URL(url, baseUrl).pathname}`);
           }
 
-          console.log(`[SERVER] Matched route: ${req.method} ${url} -> handler: ${match.handler.name || 'anonymous'}`);
           const body = req.body;
-          console.log(`[SERVER] Body:`, JSON.stringify(body));
-          console.log(`[SERVER] Calling handler...`);
-        
-          // Pass arguments based on handler type
-          let handlerResult;
+
           if (match.action) {
-            handlerResult = await match.handler(req, res, match.params, body, match.action);
+            await match.handler(req, res, match.params, body, match.action);
           } else {
-            handlerResult = await match.handler(req, res, match.params, body);
+            await match.handler(req, res, match.params, body);
           }
-          console.log(`[SERVER] Handler completed, result:`, handlerResult);
         } catch (err) {
-          console.error("[SERVER] Unhandled server error:", err);
           logger.error("Unhandled server error", err instanceof Error ? err.message : String(err));
           sendError(res, 500, "Internal server error");
         }

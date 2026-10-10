@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from "http";
 import { sendSuccess, sendError, sendJson } from "../middleware.js";
+import { getRateLimitStats } from "../rateLimiter.js";
 import {
   loadLatestMacroData,
   loadMacroHistory,
@@ -92,7 +93,6 @@ export function handlePublicExport(req: IncomingMessage, res: ServerResponse, pa
     dataset,
     realm,
     format: "json",
-    rateLimiting: getRateLimitStats(),
   });
 }
 
