@@ -63,7 +63,15 @@ export async function executeAction(action: string, params?: Record<string, unkn
       console.log(`[executeAction] government-orders: calling runAllGovernmentOrders`);
       const result = await runAllGovernmentOrders();
       console.log(`[executeAction] government-orders: runAllGovernmentOrders returned`);
-      return { action, ok: result.ok, result: { report: result.reports ?? result.results, errors: [] } };
+      // Push to data repo so web frontend can access via GitHub CDN
+      try {
+        const exportResult = await runPublicExportPipeline();
+        console.log(`[executeAction] government-orders: export pipeline returned ${exportResult.files.length} files`);
+        return { action, ok: result.ok && exportResult.ok, result: { report: result.reports ?? result.results, errors: exportResult.errors } };
+      } catch (exportErr) {
+        console.error(`[executeAction] government-orders: export pipeline failed`, exportErr);
+        return { action, ok: false, result: { report: result.reports ?? result.results, errors: [exportErr instanceof Error ? exportErr.message : String(exportErr)] } };
+      }
     }
 
     case "public-export": {
