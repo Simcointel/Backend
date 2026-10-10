@@ -20,7 +20,13 @@ function parseRealmParam(raw: string): number | null {
 function loadAllYears(realm: number): HistoryFile[] {
   const dir = resolve(getDataRoot(), "aggregates", "macro-history", `realm-${realm}`);
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return entries
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
       const year = parseInt(f.replace(".json", ""), 10);
@@ -38,7 +44,13 @@ function loadAllYears(realm: number): HistoryFile[] {
 function loadArchivedYears(realm: number): HistoryFile[] {
   const dir = resolve(getDataRoot(), "archives", "macro", `realm-${realm}`);
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return entries
     .filter((f) => f.startsWith("macro-history-") && f.endsWith(".json"))
     .map((f) => {
       const year = parseInt(f.replace("macro-history-", "").replace(".json", ""), 10);
@@ -114,10 +126,15 @@ export async function handleMacroIndexes(req: IncomingMessage, res: ServerRespon
   const dir = resolve(getDataRoot(), "aggregates", "indexes", `realm-${r}`);
   if (!existsSync(dir)) return sendSuccess(res, { realm: r, indexes: [] });
 
-  const files = readdirSync(dir)
-    .filter((f) => f.startsWith("price-indexes-") && f.endsWith(".json"))
-    .sort()
-    .reverse();
+  let files: string[];
+  try {
+    files = readdirSync(dir)
+      .filter((f) => f.startsWith("price-indexes-") && f.endsWith(".json"))
+      .sort()
+      .reverse();
+  } catch {
+    return sendError(res, 500, "Failed to read indexes directory");
+  }
 
   const url = new URL(req.url || "", getBaseUrl(req));
   const limit = parseInt(url.searchParams.get("limit") || "100", 10);
@@ -141,10 +158,15 @@ export async function handleMacroInflation(req: IncomingMessage, res: ServerResp
   const dir = resolve(getDataRoot(), "aggregates", "inflation", `realm-${r}`);
   if (!existsSync(dir)) return sendSuccess(res, { realm: r, inflation: [] });
 
-  const files = readdirSync(dir)
-    .filter((f) => f.startsWith("inflation-report-") && f.endsWith(".json"))
-    .sort()
-    .reverse();
+  let files: string[];
+  try {
+    files = readdirSync(dir)
+      .filter((f) => f.startsWith("inflation-report-") && f.endsWith(".json"))
+      .sort()
+      .reverse();
+  } catch {
+    return sendError(res, 500, "Failed to read inflation directory");
+  }
 
   const url = new URL(req.url || "", getBaseUrl(req));
   const limit = parseInt(url.searchParams.get("limit") || "100", 10);
@@ -222,10 +244,15 @@ export async function handleMacroLatest(req: IncomingMessage, res: ServerRespons
   const indexesDir = resolve(getDataRoot(), "aggregates", "indexes", `realm-${r}`);
   let latestIndexes: unknown = null;
   if (existsSync(indexesDir)) {
-    const files = readdirSync(indexesDir)
-      .filter((f) => f.startsWith("price-indexes-") && f.endsWith(".json"))
-      .sort()
-      .reverse();
+    let files: string[];
+    try {
+      files = readdirSync(indexesDir)
+        .filter((f) => f.startsWith("price-indexes-") && f.endsWith(".json"))
+        .sort()
+        .reverse();
+    } catch {
+      files = [];
+    }
     if (files.length > 0) {
       try {
         latestIndexes = JSON.parse(readFileSync(join(indexesDir, files[0]), "utf-8"));
@@ -236,10 +263,15 @@ export async function handleMacroLatest(req: IncomingMessage, res: ServerRespons
   const inflationDir = resolve(getDataRoot(), "aggregates", "inflation", `realm-${r}`);
   let latestInflation: unknown = null;
   if (existsSync(inflationDir)) {
-    const files = readdirSync(inflationDir)
-      .filter((f) => f.startsWith("inflation-report-") && f.endsWith(".json"))
-      .sort()
-      .reverse();
+    let files: string[];
+    try {
+      files = readdirSync(inflationDir)
+        .filter((f) => f.startsWith("inflation-report-") && f.endsWith(".json"))
+        .sort()
+        .reverse();
+    } catch {
+      files = [];
+    }
     if (files.length > 0) {
       try {
         latestInflation = JSON.parse(readFileSync(join(inflationDir, files[0]), "utf-8"));

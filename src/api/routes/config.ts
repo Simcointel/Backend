@@ -10,7 +10,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONFIG_SECTIONS = ["formulas", "schedules", "featureFlags"];
 
 export async function handleListConfig(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const cfg = loadConfig();
+  let cfg;
+  try {
+    cfg = loadConfig();
+  } catch (err) {
+    return sendError(res, 500, `Failed to load config: ${err instanceof Error ? err.message : String(err)}`);
+  }
   const sections: Record<string, unknown> = {};
   for (const section of CONFIG_SECTIONS) {
     sections[section] = (cfg as unknown as Record<string, unknown>)[section];
@@ -19,7 +24,12 @@ export async function handleListConfig(req: IncomingMessage, res: ServerResponse
 }
 
 export async function handleGetConfig(req: IncomingMessage, res: ServerResponse, section: string): Promise<void> {
-  const cfg = loadConfig();
+  let cfg;
+  try {
+    cfg = loadConfig();
+  } catch (err) {
+    return sendError(res, 500, `Failed to load config: ${err instanceof Error ? err.message : String(err)}`);
+  }
   const value = (cfg as unknown as Record<string, unknown>)[section];
   if (value === undefined) {
     return sendError(res, 404, `Config section '${section}' not found`);

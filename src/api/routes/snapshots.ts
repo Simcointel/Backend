@@ -44,10 +44,16 @@ export async function handleListSnapshots(req: IncomingMessage, res: ServerRespo
       result[`realm-${realm}`] = { count: 0, latest: null };
       continue;
     }
-    const files = readdirSync(dir)
-      .filter((f) => f.startsWith(prefix) && f.endsWith(".json"))
-      .sort()
-      .reverse();
+    let files: string[];
+    try {
+      files = readdirSync(dir)
+        .filter((f) => f.startsWith(prefix) && f.endsWith(".json"))
+        .sort()
+        .reverse();
+    } catch {
+      result[`realm-${realm}`] = { count: 0, latest: null };
+      continue;
+    }
     result[`realm-${realm}`] = {
       count: files.length,
       latest: files.length > 0 ? files[0] : null,
@@ -81,21 +87,26 @@ export async function handleListRealmSnapshots(req: IncomingMessage, res: Server
 
   const prefix = type === "government-orders" ? "government-orders-" : "market-snapshot-";
   
-  const files = readdirSync(dir)
-    .filter((f) => f.startsWith(prefix) && f.endsWith(".json"))
-    .sort()
-    .reverse()
-    .map((f) => {
-      const fullPath = join(dir, f);
-      try {
-        const stats = statSync(fullPath);
-        return { name: f, size: stats.size, mtime: stats.mtime.toISOString() };
-      } catch {
-        return { name: f, size: 0, mtime: null };
-      }
-    });
+  let files: string[];
+  try {
+    files = readdirSync(dir)
+      .filter((f) => f.startsWith(prefix) && f.endsWith(".json"))
+      .sort()
+      .reverse();
+  } catch {
+    return sendError(res, 500, "Failed to read snapshots directory");
+  }
+  const fileList = files.map((f) => {
+    const fullPath = join(dir, f);
+    try {
+      const stats = statSync(fullPath);
+      return { name: f, size: stats.size, mtime: stats.mtime.toISOString() };
+    } catch {
+      return { name: f, size: 0, mtime: null };
+    }
+  });
 
-  sendSuccess(res, { realm, type, files });
+  sendSuccess(res, { realm, type, files: fileList });
 }
 
 export async function handleGetSnapshot(req: IncomingMessage, res: ServerResponse, realm: string, file: string): Promise<void> {

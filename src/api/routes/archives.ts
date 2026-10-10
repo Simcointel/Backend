@@ -19,10 +19,16 @@ export async function handleListArchives(req: IncomingMessage, res: ServerRespon
       result[`realm-${realm}`] = { count: 0, archives: [] };
       continue;
     }
-    const archives = readdirSync(dir)
-      .filter((f) => f.startsWith("market-archive-") && f.endsWith(".json"))
-      .sort()
-      .reverse();
+    let archives: string[];
+    try {
+      archives = readdirSync(dir)
+        .filter((f) => f.startsWith("market-archive-") && f.endsWith(".json"))
+        .sort()
+        .reverse();
+    } catch {
+      result[`realm-${realm}`] = { count: 0, archives: [] };
+      continue;
+    }
     result[`realm-${realm}`] = {
       count: archives.length,
       archives,
@@ -45,19 +51,24 @@ export async function handleListRealmArchives(req: IncomingMessage, res: ServerR
     return sendSuccess(res, { realm, archives: [] });
   }
 
-  const archives = readdirSync(dir)
-    .filter((f) => f.startsWith("market-archive-") && f.endsWith(".json"))
-    .sort()
-    .reverse()
-    .map((f) => {
-      const fullPath = resolve(dir, f);
-      try {
-        const stats = statSync(fullPath);
-        return { name: f, size: stats.size, mtime: stats.mtime.toISOString() };
-      } catch {
-        return { name: f, size: 0, mtime: null };
-      }
-    });
+  let files: string[];
+  try {
+    files = readdirSync(dir)
+      .filter((f) => f.startsWith("market-archive-") && f.endsWith(".json"))
+      .sort()
+      .reverse();
+  } catch {
+    return sendError(res, 500, "Failed to read archives directory");
+  }
+  const archives = files.map((f) => {
+    const fullPath = resolve(dir, f);
+    try {
+      const stats = statSync(fullPath);
+      return { name: f, size: stats.size, mtime: stats.mtime.toISOString() };
+    } catch {
+      return { name: f, size: 0, mtime: null };
+    }
+  });
 
   sendSuccess(res, { realm, archives });
 }
