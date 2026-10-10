@@ -186,7 +186,7 @@ async function loadLatestGovernmentOrders(realm: number): Promise<{ t: string; r
     if (!existsSync(latestPath)) return null;
     
     const snapshot = JSON.parse(readFileSync(latestPath, "utf-8"));
-    return snapshot.data;
+    return snapshot as { t: string; r: number; orders: any[] };
   } catch {
     return null;
   }
