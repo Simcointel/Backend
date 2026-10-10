@@ -80,6 +80,7 @@ export class DataRepoWriter implements IDataRepoWriter {
   async commitAndPush(message: string): Promise<void> {
     const { owner, repo, branch, path: repoPath } = this.config;
     const githubToken = await getGithubToken();
+    console.log(`[DataRepoWriter] commitAndPush: token length=${githubToken.length}, starts with=${githubToken.slice(0, 7)}...`);
     if (!githubToken) {
       logger.error("No GitHub token available -- cannot push to data repo");
       return;

@@ -19,15 +19,18 @@ export async function getGithubToken(): Promise<string> {
   const fromConnect = await getVercelConnectToken();
   if (fromConnect) {
     cachedToken = fromConnect;
+    console.log(`[connectAuth] Got token from Vercel Connect (${fromConnect.length} chars)`);
     return cachedToken;
   }
 
   const fromEnv = process.env.GITHUB_TOKEN ?? "";
   if (fromEnv) {
     cachedToken = fromEnv;
+    console.log(`[connectAuth] Got token from GITHUB_TOKEN env var (${fromEnv.length} chars)`);
     return cachedToken;
   }
 
+  console.log(`[connectAuth] No token available — Vercel Connect and GITHUB_TOKEN both empty`);
   return "";
 }
 
