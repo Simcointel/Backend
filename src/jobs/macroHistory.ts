@@ -130,7 +130,9 @@ export function appendToYearFile(realm: number, year: number, entries: HistoryEn
   const file: HistoryFile = { r: realm, y: year, e: merged };
   const p = yearFilePath(realm, year);
   ensureDir(p);
-  writeFileSync(p, JSON.stringify(file) + "\n", "utf-8");
+  const tempPath = p + '.tmp';
+  writeFileSync(tempPath, JSON.stringify(file) + "\n", "utf-8");
+  renameSync(tempPath, p);
 }
 
 export async function runBackfill(realm: number): Promise<HistorySyncResult> {
