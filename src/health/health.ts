@@ -1,4 +1,4 @@
-import { loadConfig } from "../config/index.js";
+import { loadConfig, SimcoIntelConfig } from "../config/index.js";
 import { logger } from "../logging/logger.js";
 import { SimcoToolsClient } from "../api/simcoTools.js";
 import { readdirSync, existsSync } from "fs";
