@@ -84,6 +84,30 @@ export interface CompanyBuilding {
   [key: string]: unknown;
 }
 
+export interface GovernmentOrder {
+  id: number;
+  name: string;
+  description: string;
+  resourceId: number;
+  quantity: number;
+  reward: number;
+  deadline: string;
+  status: "active" | "completed" | "expired";
+}
+
+export interface GovernmentOrdersResponse {
+  orders: GovernmentOrder[];
+}
+
+export interface MarketCandlestick {
+  datetime: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 // Client pool keyed by realm
 const clientPool = new Map<number, SimcoToolsClient>();
 
@@ -198,8 +222,13 @@ export class SimcoToolsClient {
     throw new ApiError("Unexpected buildings response shape");
   }
 
-  async getGovernmentOrders(): Promise<unknown> {
-    return this.fetchJson<unknown>("/government-orders");
+  async getGovernmentOrders(): Promise<GovernmentOrdersResponse> {
+    const data = await this.fetchJson<unknown>("/government-orders");
+    if (Array.isArray(data)) return { orders: data as GovernmentOrder[] };
+    if (data && typeof data === "object" && "orders" in data) {
+      return { orders: (data as { orders: GovernmentOrder[] }).orders };
+    }
+    throw new ApiError("Unexpected government orders response shape");
   }
 
   async getMarketCandlesticks(resourceId: number, quality: number, _startDate?: string, _endDate?: string): Promise<any[]> {

@@ -22,7 +22,6 @@ import {
   handleMacroInflation,
   handleMacroPhases,
   handleMacroLatest,
-  handleMacroState,
   handleMacroListHistory,
 } from "./routes/macro.js";
 import {
@@ -69,14 +68,16 @@ function buildRouter(): Router {
   r.get("/api/macro/inflation/:realm", (req, res, params) => handleMacroInflation(req, res, params.realm));
   r.get("/api/macro/phases/:realm", (req, res, params) => handleMacroPhases(req, res, params.realm));
   r.get("/api/macro/latest/:realm", (req, res, params) => handleMacroLatest(req, res, params.realm));
-  r.get("/api/macro/state/:realm", (req, res, params) => handleMacroState(req, res, params.realm));
 
   // Public API (rate limited)
   r.get("/api/public/status", (req, res) => handlePublicStatus(req, res));
   r.get("/api/public/macro", wrapRateLimited(handlePublicMacro));
   r.get("/api/public/indexes", wrapRateLimited(handlePublicIndexes));
   r.get("/api/public/inflation", wrapRateLimited(handlePublicInflation));
-  r.get("/api/public/export", wrapRateLimited(handlePublicExportList));
+  r.get("/api/public/export", (req, res) => {
+    if (!rateLimitMiddleware(req, res)) return;
+    handlePublicExportList(res);
+  });
   r.get("/api/public/export/:dataset", wrapRateLimited(handlePublicExport));
   r.get("/api/public/sync", wrapRateLimited(handleSync));
 

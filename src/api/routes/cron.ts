@@ -15,7 +15,13 @@ import { recordFetchResult } from "../../jobs/failureTracker.js";
 
 function checkSecret(req: IncomingMessage): boolean {
   const expected = process.env.CRON_SECRET;
-  return !expected || req.headers.authorization === `Bearer ${expected}`;
+  if (!expected) return true;
+  const auth = req.headers.authorization ?? '';
+  if (!auth.startsWith('Bearer ')) return false;
+  const provided = Buffer.from(auth.slice(7));
+  const expectedBuf = Buffer.from(expected);
+  if (provided.length !== expectedBuf.length) return false;
+  return timingSafeEqual(provided, expectedBuf);
 }
 
 async function githubFetch(url: string, options: RequestInit): Promise<Response> {

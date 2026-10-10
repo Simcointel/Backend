@@ -44,6 +44,7 @@ export async function handleUpdateConfig(req: IncomingMessage, res: ServerRespon
   }
 
   const configPaths = [resolve(process.cwd(), "config"), resolve(__dirname, "..", "..", "config")];
+  // Pick the first directory where this section's config file already exists; fall back to the default if none do.
   const configDir = configPaths.find((p) => existsSync(resolve(p, `${section}.json`))) || configPaths[0];
   const filePath = resolve(configDir, `${section}.json`);
 

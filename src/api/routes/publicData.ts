@@ -23,6 +23,25 @@ export interface PublicMacro {
   generatedAt: string;
 }
 
+export interface MacroHistoryEntry {
+  t?: string;
+  cv?: number;
+  ac?: number;
+  bs?: number;
+  tb?: number;
+  [key: string]: unknown;
+}
+
+export interface MacroIndexEntry {
+  ix: Record<string, { v: number }>;
+  [key: string]: unknown;
+}
+
+export interface MacroInflationEntry {
+  in: Record<string, { ch: number }>;
+  [key: string]: unknown;
+}
+
 function indexDir(subDir: string): { latest: string | null } {
   const p = resolve(getDataRoot(), subDir, "index.json");
   if (!existsSync(p)) return { latest: null };
@@ -40,13 +59,13 @@ function readLatestFile(subDir: string): unknown | null {
   } catch { return null; }
 }
 
-function readAllFiles(subDir: string, limit: number): unknown[] {
+function readAllFiles<T>(subDir: string, limit: number): T[] {
   const { latest } = indexDir(subDir);
   if (!latest) return [];
   const p = resolve(getDataRoot(), subDir);
   try {
     const files = readdirSync(p).filter(f => f.endsWith(".json") && f !== "index.json").sort().reverse().slice(0, limit);
-    return files.map(f => { try { return JSON.parse(readFileSync(resolve(p, f), "utf-8")); } catch { return null; } }).filter(Boolean);
+    return files.map(f => { try { return JSON.parse(readFileSync(resolve(p, f), "utf-8")) as T; } catch { return null; } }).filter(Boolean) as T[];
   } catch { return []; }
 }
 

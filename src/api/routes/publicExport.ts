@@ -7,8 +7,6 @@ import {
   loadMacroInflation,
 } from "./publicData.js";
 import { computeProfitMargins } from "../../jobs/profitMargins.js";
-import { getRateLimitStats } from "../rateLimiter.js";
-
 type Dataset =
   | "macro" | "history" | "indexes" | "inflation" | "margins";
 
@@ -98,7 +96,7 @@ export function handlePublicExport(req: IncomingMessage, res: ServerResponse, pa
   });
 }
 
-export function handlePublicExportList(_req: IncomingMessage, res: ServerResponse): void {
+export function handlePublicExportList(res: ServerResponse): void {
   const datasets: { name: string; description: string; url: string }[] = [
     { name: "macro", description: "Latest macro snapshot for a realm", url: "/api/public/export/macro?realm=0" },
     { name: "history", description: "Macro history entries", url: "/api/public/export/history?realm=0&limit=120" },
@@ -108,6 +106,5 @@ export function handlePublicExportList(_req: IncomingMessage, res: ServerRespons
   ];
   sendSuccess(res, { datasets }, {
     format: "json or csv (add ?format=csv)",
-    rateLimiting: getRateLimitStats(),
   });
 }

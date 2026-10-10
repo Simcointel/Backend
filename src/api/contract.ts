@@ -50,7 +50,6 @@ export function getSchema(): Record<string, unknown> {
       { path: "/api/macro/inflation/:realm", method: "GET", description: "Realm inflation reports", response: "InflationReports" },
       { path: "/api/macro/phases/:realm", method: "GET", description: "Realm phase history", response: "PhaseHistory" },
       { path: "/api/macro/latest/:realm", method: "GET", description: "Realm latest data", response: "LatestData" },
-      { path: "/api/macro/state/:realm", method: "GET", description: "Realm backfill state", response: "BackfillState" },
       { path: "/api/intelligence/momentum", method: "GET", description: "Market momentum", response: "MomentumData" },
       { path: "/api/intelligence/volatility", method: "GET", description: "Market volatility", response: "VolatilityData" },
       { path: "/api/intelligence/stress", method: "GET", description: "Sector stress", response: "StressData" },
