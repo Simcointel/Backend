@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from "http";
-import { Response } from "express";
+import { Request, Response } from "express";
 import { logger } from "../logging/logger.js";
 
 type ResponseLike = ServerResponse | Response;
@@ -24,6 +24,12 @@ export function sendError(res: ResponseLike, statusCode: number, error: string):
 }
 
 export function parseJsonBody(req: IncomingMessage, timeoutMs = 5000): Promise<unknown> {
+  // If express.json() already parsed the body, return it immediately
+  const expressReq = req as Request;
+  if (expressReq.body !== undefined) {
+    return Promise.resolve(expressReq.body);
+  }
+
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let timedOut = false;

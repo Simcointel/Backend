@@ -11,12 +11,21 @@ const MAX_REQUESTS = 120;
 const entries = new Map<string, RateLimitEntry>();
 
 // Periodic cleanup
-setInterval(() => {
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [ip, entry] of entries) {
     if (entry.resetAt < now) entries.delete(ip);
   }
 }, 60_000);
+
+export function stopRateLimiter(): void {
+  if (cleanupInterval !== null) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
+}
 
 export function getClientIp(req: IncomingMessage): string {
   const forwarded = req.headers["x-forwarded-for"];

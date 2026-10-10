@@ -10,6 +10,7 @@ import { runPublicExportPipeline } from "./publicExportPipeline.js";
 import { runAllProfitMargins } from "./profitMargins.js";
 import { runAllHistorySync } from "./macroHistory.js";
 import { runAllGovernmentOrders } from "./governmentOrders.js";
+import { stopRateLimiter } from "../api/rateLimiter.js";
 
 let shuttingDown = false;
 let schedulerRunning = false;
@@ -26,6 +27,7 @@ export function getSchedulerUptime(): number {
 
 export function shutdown(): void {
   shuttingDown = true;
+  stopRateLimiter();
 }
 
 function formatUptime(ms: number): string {
