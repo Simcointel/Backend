@@ -3,6 +3,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { createRequire } from "module";
 import { loadEnv, envString, envNumber } from "./env.js";
+import { logger } from "../logging/logger.js";
 import type {
   SimcoIntelConfig,
   FormulaConfig,
@@ -182,13 +183,10 @@ export function loadConfig(): SimcoIntelConfig {
   }
 
 export function reloadConfig(): SimcoIntelConfig {
-  console.log("[reloadConfig] Start - clearing cache");
   cached = null;
   const require = createRequire(import.meta.url);
   const { resetDataRepoWriter } = require("../storage/dataRepoWriter");
   resetDataRepoWriter();
-  console.log("[reloadConfig] Calling loadConfig");
   const result = loadConfig();
-  console.log("[reloadConfig] loadConfig returned");
   return result;
 }
