@@ -1,4 +1,4 @@
-import { loadConfig } from "../config/index.js";
+﻿import { loadConfig } from "../config/index.js";
 import { logger } from "../logging/logger.js";
 import { runFetch, runFetchForRealm } from "./fetchJob.js";
 import { runAggregation } from "./aggregate.js";
@@ -10,6 +10,7 @@ import { runPublicExportPipeline } from "./publicExportPipeline.js";
 import { runAllProfitMargins } from "./profitMargins.js";
 import { runAllHistorySync } from "./macroHistory.js";
 import { runAllGovernmentOrders } from "./governmentOrders.js";
+import { runFetchRestaurantRetailInfo } from "./restaurantRetailInfo.js";
 import { stopRateLimiter } from "../api/rateLimiter.js";
 
 let shuttingDown = false;
@@ -57,8 +58,8 @@ export async function startScheduler(): Promise<void> {
   logger.info(`  compress:       every ${cfg.schedules.compressionIntervalDays} days`);
   logger.info(`  macro:          realmMetrics=${cfg.macroSettings.enableRealmMetrics}, priceIndexes=${cfg.macroSettings.enablePriceIndexes}, inflation=${cfg.macroSettings.enableInflationTracking}, profitMargins=${cfg.macroSettings.enableProfitMargins}`);
   logger.info(`  macro-history:  ${cfg.macroHistory.enableHistoryIngestion ? "enabled" : "disabled"}, backfill=${cfg.macroHistory.enableBackfill}, lookback=${cfg.macroHistory.backfillLookbackDays}d`);
-    logger.info(`  government orders: ${cfg.governmentOrders.enableGovernmentOrders ? "enabled" : "disabled"}, day=${cfg.governmentOrders.fetchDayOfWeek}, time=${cfg.governmentOrders.fetchHourUtc}:${cfg.governmentOrders.fetchMinuteUtc.toString().padStart(2, "0")} UTC`);
-    logger.info(`  commit-push:    ${cfg.featureFlags.enableCommitPush}`);
+  logger.info(`  government orders: ${cfg.governmentOrders.enableGovernmentOrders ? "enabled" : "disabled"}, day=${cfg.governmentOrders.fetchDayOfWeek}, time=${cfg.governmentOrders.fetchHourUtc}:${cfg.governmentOrders.fetchMinuteUtc.toString().padStart(2, "0")} UTC`);
+  logger.info(`  commit-push:    ${cfg.featureFlags.enableCommitPush}`);
   logger.info(`  alerting:       ${cfg.featureFlags.enableAlerting}`);
   logger.info(`  aggregation:    ${cfg.featureFlags.enableAggregation}`);
   logger.info(`  analytics:      ${cfg.featureFlags.enableAnalytics}`);
@@ -85,64 +86,76 @@ export async function startScheduler(): Promise<void> {
     }
 
     if (cfg.featureFlags.enableCommitPush && process.env.SYNC_SECRET) {
-          logger.info("Sync: data pushed to Data repo via external GitHub Action pull");
+      logger.info("Sync: data pushed to Data repo via external GitHub Action pull");
+    }
+
+    // Parallelize realm processing where possible
+    if (cfg.featureFlags.enableAggregation) {
+      const aggResults = await Promise.allSettled(
+        cfg.simco.realms.map(async (realm) => {
+          const aggResult = await runAggregation(cfg.dataRepo.path, realm);
+          if (!aggResult.ok) logger.warn(`[realm ${realm}] Aggregation skipped`, aggResult.error ?? "");
+          return { realm, ...aggResult };
+        })
+      );
+
+      const aggFailures = aggResults.filter(r => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok));
+      if (aggFailures.length > 0) {
+        logger.warn(`Aggregation had ${aggFailures.length}/${cfg.simco.realms.length} failures`);
+      }
+    }
+
+    if (cfg.macroSettings.enableProfitMargins) {
+      try {
+        const profitResult = await runAllProfitMargins();
+        if (!profitResult.ok) {
+          logger.warn("Profit margins pipeline had failures");
         }
+      } catch (err) {
+        logger.error('Profit margins pipeline failed', err);
+      }
+    }
 
-        // Parallelize realm processing where possible
-        if (cfg.featureFlags.enableAggregation) {
-          const aggResults = await Promise.allSettled(
-            cfg.simco.realms.map(async (realm) => {
-              const aggResult = await runAggregation(cfg.dataRepo.path, realm);
-              if (!aggResult.ok) logger.warn(`[realm ${realm}] Aggregation skipped`, aggResult.error ?? "");
-              return { realm, ...aggResult };
-            })
-          );
-  
-          const aggFailures = aggResults.filter(r => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok));
-          if (aggFailures.length > 0) {
-            logger.warn(`Aggregation had ${aggFailures.length}/${cfg.simco.realms.length} failures`);
-          }
+    // Run history sync in parallel
+    if (cfg.macroHistory.enableHistoryIngestion) {
+      try {
+        const historyResult = await runAllHistorySync();
+        if (!historyResult.ok) {
+          logger.warn("History sync pipeline had failures");
         }
+      } catch (err) {
+        logger.error('History sync pipeline failed', err);
+      }
+    }
 
-        if (cfg.macroSettings.enableProfitMargins) {
-          try {
-            const profitResult = await runAllProfitMargins();
-            if (!profitResult.ok) {
-              logger.warn("Profit margins pipeline had failures");
-            }
-          } catch (err) {
-            logger.error('Profit margins pipeline failed', err);
-          }
+    // Government orders (once per week on Wednesday after 13:00 UTC)
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg) && lastGovernmentOrdersFetchDate !== todayStr) {
+      try {
+        const govResult = await runAllGovernmentOrders();
+        if (!govResult.ok) {
+          logger.warn("Government orders pipeline had failures");
+        } else {
+          lastGovernmentOrdersFetchDate = todayStr;
         }
+      } catch (err) {
+        logger.error('Government orders pipeline failed', err);
+      }
+    }
 
-        // Run history sync in parallel
-        if (cfg.macroHistory.enableHistoryIngestion) {
-          try {
-            const historyResult = await runAllHistorySync();
-            if (!historyResult.ok) {
-              logger.warn("History sync pipeline had failures");
-            }
-          } catch (err) {
-            logger.error('History sync pipeline failed', err);
-          }
+    // Restaurant retail info (every 4 cycles = ~6 hours with default 90min interval)
+    if (cycle % 4 === 0) {
+      try {
+        const restaurantResult = await runFetchRestaurantRetailInfo();
+        if (!restaurantResult.ok) {
+          logger.warn("Restaurant retail info fetch failed", restaurantResult.error ?? "");
+        } else {
+          logger.info(`Restaurant retail info fetched: ${restaurantResult.count} quality levels`);
         }
-
-        // Government orders (once per week on Wednesday after 13:00 UTC)
-        const todayStr = new Date().toISOString().slice(0, 10);
-        if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg) && lastGovernmentOrdersFetchDate !== todayStr) {
-          try {
-            const govResult = await runAllGovernmentOrders();
-            if (!govResult.ok) {
-              logger.warn("Government orders pipeline had failures");
-            } else {
-              lastGovernmentOrdersFetchDate = todayStr;
-            }
-          } catch (err) {
-            logger.error('Government orders pipeline failed', err);
-          }
-        }
-
-
+      } catch (err) {
+        logger.error("Restaurant retail info pipeline failed", err);
+      }
+    }
 
     // Public dataset export (every cycle)
     try {
