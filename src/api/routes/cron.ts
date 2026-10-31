@@ -81,7 +81,16 @@ export async function handleCronCycle(req: IncomingMessage, res: ServerResponse)
     sendError(res, 401, "Unauthorized");
     return;
   }
-  const cfg = loadConfig();
+
+  let cfg;
+  try {
+    cfg = loadConfig();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error("loadConfig failed in cron cycle", err);
+    sendError(res, 500, `Config load failed: ${msg}`);
+    return;
+  }
 
   const results: Record<string, unknown> = {};
   const errors: string[] = [];
