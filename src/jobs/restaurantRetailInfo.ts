@@ -1,4 +1,3 @@
-import { fetch } from "undici";
 import { loadConfig } from "../config/index.js";
 import { logger } from "../logging/logger.js";
 import { DataRepoWriter, getDataRepoWriter } from "../storage/dataRepoWriter.js";
