@@ -181,10 +181,9 @@ export function loadConfig(): SimcoIntelConfig {
     return cached;
   }
 
-export function reloadConfig(): SimcoIntelConfig {
+export async function reloadConfig(): Promise<SimcoIntelConfig> {
   cached = null;
-  const require = createRequire(import.meta.url);
-  const { resetDataRepoWriter } = require("../storage/dataRepoWriter");
+  const { resetDataRepoWriter } = await import("../storage/dataRepoWriter.js");
   resetDataRepoWriter();
   const result = loadConfig();
   return result;

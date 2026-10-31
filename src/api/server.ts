@@ -113,7 +113,7 @@ function ensureDataDir(): void {
     mkdirSync(dir, { recursive: true });
   }
   process.env.DATA_REPO_PATH = dir;
-  reloadConfig();
+  reloadConfig(); // fire-and-forget; returns Promise
   logger.info(`Data directory ready at ${dir}`);
 }
 

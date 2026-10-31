@@ -73,7 +73,7 @@ export async function executeAction(action: string, params?: Record<string, unkn
     }
 
     case "reload-config": {
-      reloadConfig();
+      await reloadConfig();
       logger.info("Config reloaded");
       return { action, ok: true, result: "config reloaded" };
     }
@@ -116,7 +116,7 @@ export async function executeAction(action: string, params?: Record<string, unkn
       const current = JSON.parse(readFileSync(filePath, "utf-8"));
       const merged = { ...current, ...values };
       writeFileSync(filePath, JSON.stringify(merged, null, 2) + "\n", "utf-8");
-      reloadConfig();
+      await reloadConfig();
 
       logger.info(`Config '${section}' updated:`, JSON.stringify(values));
       return { action, ok: true, result: `'${section}' updated` };
