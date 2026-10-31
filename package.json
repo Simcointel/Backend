@@ -42,7 +42,8 @@
   "dependencies": {
     "@vercel/connect": "^2.4.1",
     "dotenv": "^16.4.7",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "undici": "^8.12.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
