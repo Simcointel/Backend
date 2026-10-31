@@ -81,9 +81,11 @@ function buildRouter(): Router {
   r.get("/api/public/export/:dataset", wrapRateLimited(handlePublicExport));
   r.get("/api/public/sync", wrapRateLimited(handleSync));
 
-  // Cron (Vercel Cron Jobs)
+  // Cron (Vercel Cron Jobs) - support both GET and POST for cron services
     r.post("/api/cron/cycle", (req, res) => handleCronCycle(req, res));
+    r.get("/api/cron/cycle", (req, res) => handleCronCycle(req, res));
     r.post("/api/cron/trigger-fetch", (req, res) => handleTriggerFetch(req, res));
+    r.get("/api/cron/trigger-fetch", (req, res) => handleTriggerFetch(req, res));
 
     // Debug: test POST route
     r.post("/api/test-post", (req, res, params, body) => {
