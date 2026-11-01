@@ -67,13 +67,31 @@ async function fetchRestaurantRetailInfoFromApi(): Promise<RestaurantQualityData
 }
 
 export async function runFetchRestaurantRetailInfo(): Promise<{ ok: boolean; error?: string; count?: number }> {
+  const startTime = Date.now();
+  const jobId = `restaurant-retail-${Date.now()}`;
+  
   try {
-    logger.info("Fetching restaurant retail info from SimCompanies API...");
+    logger.info(`[${jobId}] Starting restaurant retail info fetch from SimCompanies API...`);
     
     const data = await fetchRestaurantRetailInfoFromApi();
+    const fetchDuration = Date.now() - startTime;
+    
+    logger.info(`[${jobId}] API fetch completed in ${fetchDuration}ms, got ${data.length} quality levels`);
     
     if (!data.length) {
+      logger.warn(`[${jobId}] No data returned from API`);
       return { ok: false, error: "No data returned from API" };
+    }
+
+    // Log quality levels and sample data for debugging
+    logger.info(`[${jobId}] Quality levels: ${data.map(d => `Q${d.quality}`).join(", ")}`);
+    if (data.length > 0) {
+      const sample = data[0];
+      logger.info(`[${jobId}] Sample Q${sample.quality}: avgPrice=${sample.averagePrice}, saturation=${sample.saturation}, retailDataPoints=${sample.retailData.length}`);
+      if (sample.retailData.length > 0) {
+        const latest = sample.retailData[sample.retailData.length - 1];
+        logger.info(`[${jobId}] Latest retail data: date=${latest.date}, amountSoldRestaurant=${latest.amountSoldRestaurant}, avgPrice=${latest.averagePrice}, demand=${latest.demand}, saturation=${latest.saturation}`);
+      }
     }
 
     const cfg = loadConfig();
@@ -93,16 +111,24 @@ export async function runFetchRestaurantRetailInfo(): Promise<{ ok: boolean; err
       data,
     };
 
+    logger.info(`[${jobId}] Writing snapshot to Data repo...`);
+    const writeStart = Date.now();
+    
     await writer.writeSnapshot(
       { timestamp, snapshotType: "restaurant-retail-info", data },
       "aggregates/restaurant-retail-info"
     );
 
-    logger.info(`Restaurant retail info fetched: ${data.length} quality levels`);
+    const writeDuration = Date.now() - writeStart;
+    const totalDuration = Date.now() - startTime;
+    
+    logger.info(`[${jobId}] Snapshot written successfully in ${writeDuration}ms (total: ${totalDuration}ms)`);
+    logger.info(`[${jobId}] Restaurant retail info fetched: ${data.length} quality levels`);
     return { ok: true, count: data.length };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error("Failed to fetch restaurant retail info", error);
+    const duration = Date.now() - startTime;
+    logger.error(`[${jobId}] Failed to fetch restaurant retail info after ${duration}ms: ${errorMessage}`, error);
     return { ok: false, error: errorMessage };
   }
 }

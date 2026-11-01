@@ -144,17 +144,24 @@ export async function startScheduler(): Promise<void> {
     }
 
     // Restaurant retail info (every 4 cycles = ~6 hours with default 90min interval)
-    if (cycle % 4 === 0) {
+    const isRestaurantCycle = cycle % 4 === 0;
+    if (isRestaurantCycle) {
+      logger.info(`[Cycle ${cycle}] Running restaurant retail info job (every 4th cycle)...`);
+      const restaurantStart = Date.now();
       try {
         const restaurantResult = await runFetchRestaurantRetailInfo();
+        const duration = Date.now() - restaurantStart;
         if (!restaurantResult.ok) {
-          logger.warn("Restaurant retail info fetch failed", restaurantResult.error ?? "");
+          logger.warn(`[Cycle ${cycle}] Restaurant retail info fetch failed after ${duration}ms`, restaurantResult.error ?? "");
         } else {
-          logger.info(`Restaurant retail info fetched: ${restaurantResult.count} quality levels`);
+          logger.info(`[Cycle ${cycle}] Restaurant retail info fetched in ${duration}ms: ${restaurantResult.count} quality levels`);
         }
       } catch (err) {
-        logger.error("Restaurant retail info pipeline failed", err);
+        const duration = Date.now() - restaurantStart;
+        logger.error(`[Cycle ${cycle}] Restaurant retail info pipeline failed after ${duration}ms`, err);
       }
+    } else {
+      logger.debug(`[Cycle ${cycle}] Skipping restaurant retail info (cycle ${cycle} % 4 = ${cycle % 4})`);
     }
 
     // Public dataset export (every cycle)

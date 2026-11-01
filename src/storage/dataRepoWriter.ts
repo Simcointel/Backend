@@ -1,4 +1,4 @@
-import { readdir, readFile } from "fs/promises";
+﻿import { readdir, readFile } from "fs/promises";
 import { join, resolve, relative } from "path";
 import { logger } from "../logging/logger.js";
 import { StorageError } from "../errors/errors.js";
@@ -11,7 +11,7 @@ export interface SnapshotPayload {
 }
 
 export interface DataRepoConfig {
-  path: string; // Not used for GitHub Contents API, but kept for compat
+  path: string;
   githubToken: string;
   owner: string;
   repo: string;
@@ -58,13 +58,17 @@ export class DataRepoWriter implements IDataRepoWriter {
     const filename = `${snapshot.snapshotType}-${snapshot.timestamp}.json`;
     const content = JSON.stringify(snapshot.data, null, 2);
     const path = `${subDir}/${filename}`.replace(/\\/g, "/");
+    const contentSize = Buffer.byteLength(content, "utf-8");
+
+    logger.info(`[DataRepoWriter] Writing snapshot: ${path} (${contentSize} bytes)`);
+    const startTime = Date.now();
 
     await this.writeFileViaContentsApi(path, content, `Add ${snapshot.snapshotType} snapshot: ${snapshot.timestamp}`);
 
-    // Also update index.json
     await this.updateIndex(subDir, filename);
 
-    logger.info("Snapshot written via Contents API", path);
+    const duration = Date.now() - startTime;
+    logger.info(`[DataRepoWriter] Snapshot written via Contents API in ${duration}ms: ${path} (${contentSize} bytes)`);
     return path;
   }
 
@@ -74,6 +78,8 @@ export class DataRepoWriter implements IDataRepoWriter {
     const branch = this.config.branch;
 
     const sha = await this.getFileSha(api, headers, branch, path);
+    logger.debug(`[DataRepoWriter] Writing file: ${path} (${content.length} chars, sha: ${sha || "new"})`);
+
     const body: Record<string, unknown> = {
       message,
       content: Buffer.from(content, "utf-8").toString("base64"),
@@ -89,17 +95,26 @@ export class DataRepoWriter implements IDataRepoWriter {
 
     if (!res.ok) {
       const text = await res.text();
+      logger.error(`[DataRepoWriter] Contents API write failed for ${path}: ${res.status} ${text}`);
       throw new StorageError(`Contents API write failed for ${path}: ${res.status} ${text}`);
     }
+
+    logger.debug(`[DataRepoWriter] File written successfully: ${path}`);
   }
 
   private async updateIndex(subDir: string, newFilename: string): Promise<void> {
     const indexPath = `${subDir}/index.json`.replace(/\\/g, "/");
     let index = { latest: "", files: [] as string[] };
 
+    let sha: string | null = null;
     try {
-      const sha = await this.getFileSha(this.getApiBase(), this.getHeaders(), this.config.branch, indexPath);
-      if (sha) {
+      sha = await this.getFileSha(this.getApiBase(), this.getHeaders(), this.config.branch, indexPath);
+    } catch {
+      sha = null;
+    }
+
+    if (sha) {
+      try {
         const api = this.getApiBase();
         const headers = this.getHeaders();
         const res = await githubFetch(`${this.getApiBase()}/contents/${encodeURIComponent(indexPath)}?ref=${this.config.branch}`, { headers: this.getHeaders() });
@@ -107,10 +122,11 @@ export class DataRepoWriter implements IDataRepoWriter {
           const data = await res.json() as { content: string; sha: string };
           const content = Buffer.from(data.content, "base64").toString("utf-8");
           index = JSON.parse(content);
+          logger.debug(`[DataRepoWriter] Loaded existing index: ${indexPath} (${index.files.length} files)`);
         }
+      } catch {
+        logger.debug(`[DataRepoWriter] Failed to load index: ${indexPath}`);
       }
-    } catch {
-      // Index doesn't exist yet, use defaults
     }
 
     index.latest = newFilename;
@@ -120,11 +136,10 @@ export class DataRepoWriter implements IDataRepoWriter {
     }
 
     await this.writeFileViaContentsApi(`${subDir}/index.json`, JSON.stringify(index, null, 2), `Update index: add ${newFilename}`);
+    logger.debug(`[DataRepoWriter] Index updated: ${indexPath} (latest: ${newFilename}, ${index.files.length} files)`);
   }
 
   async commitAndPush(message: string): Promise<void> {
-    // With Contents API, each writeSnapshot already commits.
-    // This method is kept for compatibility but is now a no-op.
     logger.info("commitAndPush called (no-op with Contents API): " + message);
   }
 
@@ -142,7 +157,6 @@ export class DataRepoWriter implements IDataRepoWriter {
   }
 }
 
-// Singleton instance for reuse across jobs
 let dataRepoWriterInstance: DataRepoWriter | null = null;
 
 export function getDataRepoWriter(config?: DataRepoConfig): DataRepoWriter {
