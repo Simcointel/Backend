@@ -1,4 +1,3 @@
-import { writeFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import { readdir, readFile } from "fs/promises";
 import { join, resolve, relative } from "path";
 import { logger } from "../logging/logger.js";
@@ -12,7 +11,7 @@ export interface SnapshotPayload {
 }
 
 export interface DataRepoConfig {
-  path: string;
+  path: string; // Not used for GitHub Contents API, but kept for compat
   githubToken: string;
   owner: string;
   repo: string;
@@ -28,8 +27,7 @@ async function githubFetch(url: string, options: RequestInit): Promise<Response>
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    return res;
+    return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -42,118 +40,92 @@ export class DataRepoWriter implements IDataRepoWriter {
     this.config = config;
   }
 
+  private getApiBase(): string {
+    return `https://api.github.com/repos/${this.config.owner}/${this.config.repo}`;
+  }
+
+  private getHeaders(): Record<string, string> {
+    const token = this.config.githubToken;
+    return {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "User-Agent": "SimcoIntel-Backend",
+      Accept: "application/vnd.github.v3+json",
+    };
+  }
+
   async writeSnapshot(snapshot: SnapshotPayload, subDir: string): Promise<string> {
-    const repoRoot = resolve(this.config.path);
-
-    if (!existsSync(repoRoot)) {
-      throw new StorageError(`Data repo path does not exist: ${repoRoot}`);
-    }
-
-    const dir = join(repoRoot, subDir);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
-
     const filename = `${snapshot.snapshotType}-${snapshot.timestamp}.json`;
-    const filePath = join(dir, filename);
-
     const content = JSON.stringify(snapshot.data, null, 2);
-    writeFileSync(filePath, content, "utf-8");
+    const path = `${subDir}/${filename}`.replace(/\\/g, "/");
 
-    logger.info("Snapshot written", filePath);
+    await this.writeFileViaContentsApi(path, content, `Add ${snapshot.snapshotType} snapshot: ${snapshot.timestamp}`);
+
+    // Also update index.json
+    await this.updateIndex(subDir, filename);
+
+    logger.info("Snapshot written via Contents API", path);
+    return path;
+  }
+
+  private async writeFileViaContentsApi(path: string, content: string, message: string): Promise<void> {
+    const api = this.getApiBase();
+    const headers = this.getHeaders();
+    const branch = this.config.branch;
+
+    const sha = await this.getFileSha(api, headers, branch, path);
+    const body: Record<string, unknown> = {
+      message,
+      content: Buffer.from(content, "utf-8").toString("base64"),
+      branch,
+    };
+    if (sha) body.sha = sha;
+
+    const res = await githubFetch(`${api}/contents/${encodeURIComponent(path)}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new StorageError(`Contents API write failed for ${path}: ${res.status} ${text}`);
+    }
+  }
+
+  private async updateIndex(subDir: string, newFilename: string): Promise<void> {
+    const indexPath = `${subDir}/index.json`.replace(/\\/g, "/");
+    let index = { latest: "", files: [] as string[] };
 
     try {
-      const files = readdirSync(dir)
-        .filter((f: string) => f.endsWith(".json") && f !== "index.json")
-        .sort()
-        .reverse()
-        .slice(0, 100);
-      const index = { latest: files[0] || "", files };
-      writeFileSync(join(dir, "index.json"), JSON.stringify(index) + "\n", "utf-8");
+      const sha = await this.getFileSha(this.getApiBase(), this.getHeaders(), this.config.branch, indexPath);
+      if (sha) {
+        const api = this.getApiBase();
+        const headers = this.getHeaders();
+        const res = await githubFetch(`${this.getApiBase()}/contents/${encodeURIComponent(indexPath)}?ref=${this.config.branch}`, { headers: this.getHeaders() });
+        if (res.ok) {
+          const data = await res.json() as { content: string; sha: string };
+          const content = Buffer.from(data.content, "base64").toString("utf-8");
+          index = JSON.parse(content);
+        }
+      }
     } catch {
-      // non-critical — process.yml regenerates index.json on push
+      // Index doesn't exist yet, use defaults
     }
 
-    return filePath;
+    index.latest = newFilename;
+    if (!index.files.includes(newFilename)) {
+      index.files.unshift(newFilename);
+      index.files = index.files.slice(0, 100);
+    }
+
+    await this.writeFileViaContentsApi(`${subDir}/index.json`, JSON.stringify(index, null, 2), `Update index: add ${newFilename}`);
   }
 
   async commitAndPush(message: string): Promise<void> {
-    const { owner, repo, branch, path: repoPath } = this.config;
-    const githubToken = await getGithubToken();
-    if (!githubToken) {
-      logger.error("No GitHub token available -- cannot push to data repo");
-      return;
-    }
-
-    if (!owner || !repo) {
-      logger.error(`Invalid data repo config: owner="${owner}" repo="${repo}"`);
-      return;
-    }
-
-    const repoRoot = resolve(repoPath);
-    if (!existsSync(repoRoot)) {
-      logger.error(`Data repo directory missing at ${repoRoot} -- nothing to push`);
-      return;
-    }
-
-    // Quick connectivity check — bail fast if GitHub API is unreachable
-    try {
-      const probe = new AbortController();
-      const probeTimer = setTimeout(() => probe.abort(), 5000);
-      await fetch("https://api.github.com", { method: "HEAD", signal: probe.signal });
-      clearTimeout(probeTimer);
-    } catch {
-      logger.warn("GitHub API unreachable — skipping push (fetch.yml will sync data instead)");
-      return;
-    }
-
-    const api = `https://api.github.com/repos/${owner}/${repo}`;
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${githubToken}`,
-      "Content-Type": "application/json",
-      "User-Agent": "SimcoIntel-Backend",
-    };
-
-    const files: Array<{ path: string; content: string }> = [];
-
-    async function walkDir(dir: string): Promise<void> {
-      const entries = await readdir(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        const fullPath = join(dir, entry.name);
-        const relativePath = relative(repoRoot, fullPath).replace(/\\/g, "/");
-        if (entry.isDirectory()) {
-          await walkDir(fullPath);
-        } else if (entry.isFile()) {
-          const content = await readFile(fullPath, "utf-8");
-          files.push({ path: relativePath, content });
-        }
-      }
-    }
-
-    await walkDir(repoRoot);
-    logger.info(`Pushing ${files.length} file(s) to ${owner}/${repo} (branch: ${branch})`);
-
-    if (files.length === 0) {
-      logger.info("No files to push");
-      return;
-    }
-
-    try {
-      await this.pushViaGitApi(api, headers, branch, message, files);
-      logger.info(`Pushed ${files.length} file(s) to ${owner}/${repo}`);
-      return;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.warn(`Git Data API push failed, falling back to Contents API: ${msg}`);
-    }
-
-    try {
-      await this.pushViaContentsApi(api, headers, branch, message, files);
-      logger.info(`Pushed ${files.length} file(s) to ${owner}/${repo} via Contents API`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new StorageError(`All push methods failed: ${msg}`);
-    }
+    // With Contents API, each writeSnapshot already commits.
+    // This method is kept for compatibility but is now a no-op.
+    logger.info("commitAndPush called (no-op with Contents API): " + message);
   }
 
   private async getFileSha(api: string, headers: Record<string, string>, branch: string, path: string): Promise<string | null> {
@@ -166,97 +138,6 @@ export class DataRepoWriter implements IDataRepoWriter {
       return null;
     } catch {
       return null;
-    }
-  }
-
-  private async pushViaGitApi(
-    api: string,
-    headers: Record<string, string>,
-    branch: string,
-    message: string,
-    files: Array<{ path: string; content: string }>,
-  ): Promise<void> {
-    const refRes = await githubFetch(`${api}/git/refs/heads/${branch}`, { headers });
-    if (!refRes.ok) throw new StorageError(`Ref fetch: ${refRes.status} ${await refRes.text()}`);
-    const ref = (await refRes.json()) as { object: { sha: string } };
-    const currentCommitSha = ref.object.sha;
-
-    const commitRes = await githubFetch(`${api}/git/commits/${currentCommitSha}`, { headers });
-    if (!commitRes.ok) throw new StorageError(`Commit fetch: ${commitRes.status} ${await commitRes.text()}`);
-    const commit = (await commitRes.json()) as { tree: { sha: string } };
-    const baseTreeSha = commit.tree.sha;
-
-    const entries: Array<{ path: string; mode: "100644"; type: "blob"; sha: string }> = [];
-    for (const file of files) {
-      const blobRes = await githubFetch(`${api}/git/blobs`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ content: file.content, encoding: "utf-8" }),
-      });
-      if (!blobRes.ok) throw new StorageError(`Blob ${file.path}: ${blobRes.status} ${await blobRes.text()}`);
-      const blob = (await blobRes.json()) as { sha: string };
-      entries.push({ path: file.path, mode: "100644", type: "blob", sha: blob.sha });
-    }
-
-    const treeRes = await githubFetch(`${api}/git/trees`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ base_tree: baseTreeSha, tree: entries }),
-    });
-    if (!treeRes.ok) throw new StorageError(`Tree create: ${treeRes.status} ${await treeRes.text()}`);
-    const tree = (await treeRes.json()) as { sha: string };
-
-    const commitRes2 = await githubFetch(`${api}/git/commits`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ message, tree: tree.sha, parents: [currentCommitSha] }),
-    });
-    if (!commitRes2.ok) throw new StorageError(`Commit create: ${commitRes2.status} ${await commitRes2.text()}`);
-    const newCommit = (await commitRes2.json()) as { sha: string };
-
-    const refRes2 = await githubFetch(`${api}/git/refs/heads/${branch}`, {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify({ sha: newCommit.sha, force: false }),
-    });
-    if (!refRes2.ok) throw new StorageError(`Ref update: ${refRes2.status} ${await refRes2.text()}`);
-  }
-
-  private async pushViaContentsApi(
-    api: string,
-    headers: Record<string, string>,
-    branch: string,
-    message: string,
-    files: Array<{ path: string; content: string }>,
-  ): Promise<void> {
-    // Batch into chunks to avoid rate limits
-    const CHUNK_SIZE = 20;
-    for (let i = 0; i < files.length; i += CHUNK_SIZE) {
-      const chunk = files.slice(i, i + CHUNK_SIZE);
-      await Promise.all(chunk.map(async (file) => {
-        const sha = await this.getFileSha(api, headers, branch, file.path);
-        const body: Record<string, unknown> = {
-          message,
-          content: Buffer.from(file.content, "utf-8").toString("base64"),
-          branch,
-        };
-        if (sha) body.sha = sha;
-
-        const res = await githubFetch(`${api}/contents/${encodeURIComponent(file.path)}`, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          logger.warn(`Contents API failed for ${file.path}: ${res.status} ${text}`);
-        }
-      }));
-      
-      // Small delay between chunks to avoid rate limits
-      if (i + CHUNK_SIZE < files.length) {
-        await new Promise(r => setTimeout(r, 500));
-      }
     }
   }
 }
