@@ -208,9 +208,31 @@ export function createApp(): Express {
   app.use(express.json({ limit: '1mb' }));
 
     // Admin panel is served from same origin (/admin), no CORS needed
-    // CORS removed for same-origin admin + API
+  // CORS for external clients (Web frontend) - enable on public API routes only
+  const corsMiddleware = (req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+    res.setHeader("Access-Control-Max-Age", "86400");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
+  };
 
-  // Serve admin dashboard from /admin
+  // Apply CORS to public API routes (external clients)
+  app.use("/api/public", corsMiddleware);
+  app.use("/api/cron", corsMiddleware);
+  app.use("/api/health", corsMiddleware);
+  app.use("/api/status", corsMiddleware);
+
+  // Admin panel served from same origin - no CORS
+
+  // Parse JSON bodies for all routes
   // In Vercel, __dirname is the dist folder, admin is at project root
   // Try multiple possible locations
   const possiblePaths = [
