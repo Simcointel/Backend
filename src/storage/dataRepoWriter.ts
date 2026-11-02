@@ -25,7 +25,7 @@ export interface IDataRepoWriter {
 
 export async function githubFetch(url: string, options: RequestInit): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
+  const timer = setTimeout(() => controller.abort(), 30000); // 30s timeout for slow GitHub API
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {

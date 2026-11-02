@@ -61,7 +61,10 @@ async function loadCycleCounter(cfg: ReturnType<typeof loadConfig>): Promise<num
       const parsed = JSON.parse(content);
       return parsed.cycle ?? 0;
     }
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      logger.debug(`[CycleCounter] Load timed out after 30s (non-blocking)`);
+    }
     // Counter doesn't exist yet or error reading
   }
   return 0;
@@ -91,8 +94,12 @@ async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: numbe
         logger.debug(`[CycleCounter] No existing file or error fetching SHA: ${res.status}`);
       }
     } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      logger.debug(`[CycleCounter] Save timed out after 30s (non-blocking)`);
+    } else {
       logger.warn(`[CycleCounter] Error fetching SHA: ${err}`);
     }
+  }
 
     const content = JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2);
     const body: Record<string, unknown> = {
@@ -120,7 +127,11 @@ async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: numbe
       logger.debug(`[CycleCounter] Successfully saved cycle ${cycle}`);
     }
   } catch (err) {
-    logger.warn("Failed to save cycle counter", err);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      logger.debug(`[CycleCounter] Save timed out after 30s (non-blocking)`);
+    } else {
+      logger.warn("Failed to save cycle counter", err);
+    }
   }
 }
 
