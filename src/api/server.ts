@@ -36,7 +36,6 @@ import {
 } from "./routes/publicExport.js";
 import { handleSync } from "./routes/sync.js";
 import { handleCronCycle, handleTriggerFetch } from "./routes/cron.js";
-import { startScheduler } from "../jobs/scheduler.js";
 import { reloadConfig } from "../config/index.js";
 import { getBaseUrl } from "./urlHelper.js";
 
@@ -196,9 +195,10 @@ export function createApp(): Express {
   const router = buildRouter();
 
   ensureDataDir();
-  startScheduler().catch((err) => {
-    logger.error("Scheduler failed to start", err instanceof Error ? err.message : String(err));
-  });
+
+  // NOTE: Scheduler is NOT auto-started here.
+  // On Vercel serverless, use /api/cron/cycle triggered by GitHub Actions cron (every 15 min).
+  // For local/dev: run with `npm run start -- scheduler` or use admin action to start.
 
   // Parse JSON bodies for all routes
   app.use((req: Request, res: Response, next: NextFunction) => {
