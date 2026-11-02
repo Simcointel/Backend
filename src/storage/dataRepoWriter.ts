@@ -23,7 +23,7 @@ export interface IDataRepoWriter {
   commitAndPush(message: string): Promise<void>;
 }
 
-async function githubFetch(url: string, options: RequestInit): Promise<Response> {
+export async function githubFetch(url: string, options: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
