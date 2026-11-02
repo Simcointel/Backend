@@ -86,8 +86,13 @@ async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: numbe
       if (res.ok) {
         const data = await res.json() as { sha: string };
         sha = data.sha;
+        logger.debug(`[CycleCounter] Found existing file, sha: ${sha}`);
+      } else {
+        logger.debug(`[CycleCounter] No existing file or error fetching SHA: ${res.status}`);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      logger.warn(`[CycleCounter] Error fetching SHA: ${err}`);
+    }
 
     const content = JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2);
     const body: Record<string, unknown> = {
@@ -95,7 +100,12 @@ async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: numbe
       content: Buffer.from(JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2), "utf-8").toString("base64"),
       branch: cfg.dataRepo.branch,
     };
-    if (sha) (body as any).sha = sha;
+    if (sha) {
+      (body as any).sha = sha;
+      logger.debug(`[CycleCounter] Updating existing file with sha: ${sha}`);
+    } else {
+      logger.debug(`[CycleCounter] Creating new file (no existing sha)`);
+    }
 
     const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}`, {
       method: "PUT",
@@ -106,6 +116,8 @@ async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: numbe
     if (!res.ok) {
       const text = await res.text();
       logger.warn(`Failed to save cycle counter: ${res.status} ${text}`);
+    } else {
+      logger.debug(`[CycleCounter] Successfully saved cycle ${cycle}`);
     }
   } catch (err) {
     logger.warn("Failed to save cycle counter", err);
