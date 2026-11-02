@@ -97,10 +97,10 @@ export async function runFetchRestaurantRetailInfo(): Promise<{ ok: boolean; err
     const cfg = loadConfig();
     const writer = getDataRepoWriter({ 
       path: cfg.dataRepo.path, 
-      githubToken: "", 
-      owner: "", 
-      repo: "", 
-      branch: "main" 
+      githubToken: cfg.dataRepo.githubToken, 
+      owner: cfg.dataRepo.owner, 
+      repo: cfg.dataRepo.repo, 
+      branch: cfg.dataRepo.branch 
     });
 
     const timestamp = new Date().toISOString().replace(/:/g, "-");
