@@ -1,4 +1,4 @@
-﻿import { loadConfig } from "../config/index.js";
+import { loadConfig } from "../config/index.js";
 import { logger } from "../logging/logger.js";
 import { runFetch, runFetchForRealm } from "./fetchJob.js";
 import { runAggregation } from "./aggregate.js";
@@ -36,13 +36,6 @@ export function getSchedulerUptime(): number {
 export function shutdown(): void {
   shuttingDown = true;
   stopRateLimiter();
-}
-
-function formatUptime(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const h = Math.floor(m / 60);
-  return `${h}h ${m % 60}m ${s % 60}s`;
 }
 
 async function loadCycleCounter(cfg: ReturnType<typeof loadConfig>): Promise<number> {
@@ -94,12 +87,12 @@ async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: numbe
         logger.debug(`[CycleCounter] No existing file or error fetching SHA: ${res.status}`);
       }
     } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      logger.debug(`[CycleCounter] Save timed out after 30s (non-blocking)`);
-    } else {
-      logger.warn(`[CycleCounter] Error fetching SHA: ${err}`);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        logger.debug(`[CycleCounter] Save timed out after 30s (non-blocking)`);
+      } else {
+        logger.warn(`[CycleCounter] Error fetching SHA: ${err}`);
+      }
     }
-  }
 
     const content = JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2);
     const body: Record<string, unknown> = {
@@ -135,170 +128,11 @@ async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: numbe
   }
 }
 
-export async function startScheduler(): Promise<void> {
-  const cfg = loadConfig();
-  const intervalMs = Math.max(60_000, cfg.schedules.fetchIntervalMinutes * 60 * 1000);
-  
-  // Load persisted cycle counter
-  let cycle = await loadCycleCounter(cfg);
-  const startedAt = Date.now();
-  schedulerRunning = true;
-  schedulerStartedAt = Date.now();
-
-  logger.info("========================================");
-  logger.info("Scheduler started");
-  logger.info(`  realms:         [${cfg.simco.realms.join(", ")}]`);
-  logger.info(`  interval:       ${cfg.schedules.fetchIntervalMinutes} min (${intervalMs} ms)`);
-  logger.info(`  retention:      ${cfg.schedules.snapshotRetentionDays} days`);
-  logger.info(`  compress:       every ${cfg.schedules.compressionIntervalDays} days`);
-  logger.info(`  macro:          realmMetrics=${cfg.macroSettings.enableRealmMetrics}, priceIndexes=${cfg.macroSettings.enablePriceIndexes}, inflation=${cfg.macroSettings.enableInflationTracking}, profitMargins=${cfg.macroSettings.enableProfitMargins}`);
-  logger.info(`  macro-history:  ${cfg.macroHistory.enableHistoryIngestion ? "enabled" : "disabled"}, backfill=${cfg.macroHistory.enableBackfill}, lookback=${cfg.macroHistory.backfillLookbackDays}d`);
-  logger.info(`  government orders: ${cfg.governmentOrders.enableGovernmentOrders ? "enabled" : "disabled"}, day=${cfg.governmentOrders.fetchDayOfWeek}, time=${cfg.governmentOrders.fetchHourUtc}:${cfg.governmentOrders.fetchMinuteUtc.toString().padStart(2, "0")} UTC`);
-  logger.info(`  commit-push:    ${cfg.featureFlags.enableCommitPush}`);
-  logger.info(`  alerting:       ${cfg.featureFlags.enableAlerting}`);
-  logger.info(`  aggregation:    ${cfg.featureFlags.enableAggregation}`);
-  logger.info(`  analytics:      ${cfg.featureFlags.enableAnalytics}`);
-  logger.info(`  cleanup:        ${cfg.featureFlags.enableRetentionCleanup}`);
-  logger.info(`  compression:    ${cfg.featureFlags.enableCompression}`);
-  logger.info("========================================");
-
-
-  while (!shuttingDown) {
-    cycle++;
-    // Fire-and-forget cycle counter save - don't block the scheduler
-    saveCycleCounter(cfg, cycle).catch(err => logger.warn("Cycle counter save failed", err));
-    const cycleStart = Date.now();
-    logger.info(`--- Cycle ${cycle} ---`);
-
-    emit("scheduler:cycle-start", { cycle });
-
-    const fetchResult = await runFetch();
-    recordFetchResult(fetchResult.ok);
-    emit("fetch:complete", { ok: fetchResult.ok, cycle, resources: fetchResult.resourceCount, vwaps: fetchResult.vwapCount });
-
-    const failureStatus = getFailureStatus(cfg.schedules.consecutiveFailureThreshold);
-
-    if (failureStatus.consecutive >= cfg.schedules.consecutiveFailureThreshold) {
-      logger.error(`FAILURE THRESHOLD EXCEEDED: ${failureStatus.consecutive} consecutive failures`);
-    }
-
-    if (cfg.featureFlags.enableCommitPush && process.env.SYNC_SECRET) {
-      logger.info("Sync: data pushed to Data repo via external GitHub Action pull");
-    }
-
-    // Parallelize realm processing where possible
-    if (cfg.featureFlags.enableAggregation) {
-      const aggResults = await Promise.allSettled(
-        cfg.simco.realms.map(async (realm) => {
-          const aggResult = await runAggregation(cfg.dataRepo.path, realm);
-          if (!aggResult.ok) logger.warn(`[realm ${realm}] Aggregation skipped`, aggResult.error ?? "");
-          return { realm, ...aggResult };
-        })
-      );
-
-      const aggFailures = aggResults.filter(r => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok));
-      if (aggFailures.length > 0) {
-        logger.warn(`Aggregation had ${aggFailures.length}/${cfg.simco.realms.length} failures`);
-      }
-    }
-
-    if (cfg.macroSettings.enableProfitMargins) {
-      try {
-        const profitResult = await runAllProfitMargins();
-        if (!profitResult.ok) {
-          logger.warn("Profit margins pipeline had failures");
-        }
-      } catch (err) {
-        logger.error('Profit margins pipeline failed', err);
-      }
-    }
-
-    // Run history sync in parallel
-    if (cfg.macroHistory.enableHistoryIngestion) {
-      try {
-        const historyResult = await runAllHistorySync();
-        if (!historyResult.ok) {
-          logger.warn("History sync pipeline had failures");
-        }
-      } catch (err) {
-        logger.error('History sync pipeline failed', err);
-      }
-    }
-
-    // Government orders (once per week on Wednesday after 13:00 UTC)
-    const todayStr = new Date().toISOString().slice(0, 10);
-    if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg) && lastGovernmentOrdersFetchDate !== todayStr) {
-      try {
-        const govResult = await runAllGovernmentOrders();
-        if (!govResult.ok) {
-          logger.warn("Government orders pipeline had failures");
-        } else {
-          lastGovernmentOrdersFetchDate = todayStr;
-        }
-      } catch (err) {
-        logger.error('Government orders pipeline failed', err);
-      }
-    }
-
-    // Restaurant retail info (every 4 cycles = ~6 hours with default 90min interval)
-    const isRestaurantCycle = cycle % 4 === 0;
-    if (isRestaurantCycle) {
-      logger.info(`[Cycle ${cycle}] Running restaurant retail info job (every 4th cycle)...`);
-      const restaurantStart = Date.now();
-      try {
-        const restaurantResult = await runFetchRestaurantRetailInfo();
-        const duration = Date.now() - restaurantStart;
-        if (!restaurantResult.ok) {
-          logger.warn(`[Cycle ${cycle}] Restaurant retail info fetch failed after ${duration}ms`, restaurantResult.error ?? "");
-        } else {
-          logger.info(`[Cycle ${cycle}] Restaurant retail info fetched in ${duration}ms: ${restaurantResult.count} quality levels`);
-        }
-      } catch (err) {
-        const duration = Date.now() - restaurantStart;
-        logger.error(`[Cycle ${cycle}] Restaurant retail info pipeline failed after ${duration}ms`, err);
-      }
-    } else {
-      logger.debug(`[Cycle ${cycle}] Skipping restaurant retail info (cycle ${cycle} % 4 = ${cycle % 4})`);
-    }
-
-    // Public dataset export (every cycle)
-    try {
-      const exportResult = await runPublicExportPipeline();
-      if (!exportResult.ok) {
-        logger.warn("Public export pipeline had failures", exportResult.errors.join(", "));
-      }
-    } catch (err) {
-      logger.error('Public export pipeline failed', err);
-    }
-
-
-    if (cfg.featureFlags.enableCompression && cycle - lastCompressCycle >= getCompressIntervalCycles(cfg.schedules.compressionIntervalDays, cfg.schedules.fetchIntervalMinutes)) {
-      try {
-        for (const realm of cfg.simco.realms) {
-          const compressResult = runCompression(cfg.dataRepo.path, realm, cfg.schedules.snapshotRetentionDays);
-          if (!compressResult.ok) logger.warn(`[realm ${realm}] Compression failed`, compressResult.error ?? "");
-        }
-        lastCompressCycle = cycle;
-      } catch (err) {
-        logger.error('Compression pipeline failed', err);
-      }
-    }
-
-    const cycleElapsed = Date.now() - cycleStart;
-    const totalElapsed = Date.now() - startedAt;
-    logger.info(`--- Cycle ${cycle} done in ${cycleElapsed}ms (uptime: ${formatUptime(totalElapsed)}) ---`);
-
-    emit("scheduler:cycle-end", { cycle, cycleElapsed, uptime: totalElapsed, ok: fetchResult.ok });
-
-    if (shuttingDown) break;
-
-    logger.info(`Next fetch in ${cfg.schedules.fetchIntervalMinutes} min`);
-
-    await sleep(intervalMs);
-  }
-
-  schedulerRunning = false;
-  logger.info("Scheduler stopped gracefully");
+function formatUptime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m ${s % 60}s`;
 }
 
 function getCompressIntervalCycles(intervalDays: number, fetchMinutes: number): number {
@@ -332,3 +166,203 @@ const sleep = async (ms: number) => {
     await new Promise(r => setTimeout(r, Math.min(step, ms - i)));
   }
 };
+
+export async function startScheduler(): Promise<void> {
+  const cfg = loadConfig();
+  const intervalMs = Math.max(60_000, cfg.schedules.fetchIntervalMinutes * 60 * 1000);
+  
+  // Load persisted cycle counter
+  const loadCounterStart = Date.now();
+  let cycle = await loadCycleCounter(cfg);
+  const loadCounterDuration = Date.now() - loadCounterStart;
+  logger.info(`[Scheduler] Cycle counter loaded: ${cycle} (took ${loadCounterDuration}ms)`);
+  
+  const startedAt = Date.now();
+  schedulerRunning = true;
+  schedulerStartedAt = Date.now();
+
+  logger.info("========================================");
+  logger.info("Scheduler started");
+  logger.info(`  realms:         [${cfg.simco.realms.join(", ")}]`);
+  logger.info(`  interval:       ${cfg.schedules.fetchIntervalMinutes} min (${intervalMs} ms)`);
+  logger.info(`  retention:      ${cfg.schedules.snapshotRetentionDays} days`);
+  logger.info(`  compress:       every ${cfg.schedules.compressionIntervalDays} days`);
+  logger.info(`  macro:          realmMetrics=${cfg.macroSettings.enableRealmMetrics}, priceIndexes=${cfg.macroSettings.enablePriceIndexes}, inflation=${cfg.macroSettings.enableInflationTracking}, profitMargins=${cfg.macroSettings.enableProfitMargins}`);
+  logger.info(`  macro-history:  ${cfg.macroHistory.enableHistoryIngestion ? "enabled" : "disabled"}, backfill=${cfg.macroHistory.enableBackfill}, lookback=${cfg.macroHistory.backfillLookbackDays}d`);
+  logger.info(`  government orders: ${cfg.governmentOrders.enableGovernmentOrders ? "enabled" : "disabled"}, day=${cfg.governmentOrders.fetchDayOfWeek}, time=${cfg.governmentOrders.fetchHourUtc}:${cfg.governmentOrders.fetchMinuteUtc.toString().padStart(2, "0")} UTC`);
+  logger.info(`  commit-push:    ${cfg.featureFlags.enableCommitPush}`);
+  logger.info(`  alerting:       ${cfg.featureFlags.enableAlerting}`);
+  logger.info(`  aggregation:    ${cfg.featureFlags.enableAggregation}`);
+  logger.info(`  analytics:      ${cfg.featureFlags.enableAnalytics}`);
+  logger.info(`  cleanup:        ${cfg.featureFlags.enableRetentionCleanup}`);
+  logger.info(`  compression:    ${cfg.featureFlags.enableCompression}`);
+  logger.info(`  githubToken:     ${cfg.dataRepo.githubToken ? "set" : "NOT SET"}`);
+  logger.info(`  dataRepo:        ${cfg.dataRepo.owner}/${cfg.dataRepo.repo}@${cfg.dataRepo.branch}`);
+  logger.info("========================================");
+
+  let cycleNumber = 0;
+  
+  while (!shuttingDown) {
+    cycleNumber = ++cycleNumber;
+    const cycleStart = Date.now();
+    logger.info(`--- Cycle ${cycleNumber} started ---`);
+    
+    // Fire-and-forget cycle counter save - don't block the scheduler
+    saveCycleCounter(cfg, cycleNumber).catch(err => logger.warn("Cycle counter save failed", err));
+    
+    emit("scheduler:cycle-start", { cycle: cycleNumber });
+    const cycleStartTime = Date.now();
+
+    // --- FETCH PHASE ---
+    const fetchStartTime = Date.now();
+    logger.info(`[Cycle ${cycleNumber}] Starting fetch phase...`);
+    const fetchResult = await runFetch();
+    const fetchDuration = Date.now() - fetchStartTime;
+    recordFetchResult(fetchResult.ok);
+    logger.info(`[Cycle ${cycleNumber}] Fetch completed in ${fetchDuration}ms: ok=${fetchResult.ok}, resources=${fetchResult.resourceCount}, vwaps=${fetchResult.vwapCount}`);
+    emit("fetch:complete", { ok: fetchResult.ok, cycle: cycleNumber, resources: fetchResult.resourceCount, vwaps: fetchResult.vwapCount });
+
+    const failureStatus = getFailureStatus(cfg.schedules.consecutiveFailureThreshold);
+
+    if (failureStatus.consecutive >= cfg.schedules.consecutiveFailureThreshold) {
+      logger.error(`FAILURE THRESHOLD EXCEEDED: ${failureStatus.consecutive} consecutive failures`);
+    }
+
+    if (cfg.featureFlags.enableCommitPush && process.env.SYNC_SECRET) {
+      logger.info("Sync: data pushed to Data repo via external GitHub Action pull");
+    }
+
+    // --- AGGREGATION PHASE ---
+    if (cfg.featureFlags.enableAggregation) {
+      const aggStartTime = Date.now();
+      logger.info(`[Cycle ${cycleNumber}] Starting aggregation for ${cfg.simco.realms.length} realms...`);
+      const aggResults = await Promise.allSettled(
+        cfg.simco.realms.map(async (realm) => {
+          const realmStart = Date.now();
+          const aggResult = await runAggregation(cfg.dataRepo.path, realm);
+          const realmDuration = Date.now() - realmStart;
+          if (!aggResult.ok) logger.warn(`[realm ${realm}] Aggregation skipped (${realmDuration}ms)`, aggResult.error ?? "");
+          return { realm, ...aggResult };
+        })
+      );
+
+      const aggFailures = aggResults.filter(r => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok));
+      if (aggFailures.length > 0) {
+        logger.warn(`Aggregation had ${aggFailures.length}/${cfg.simco.realms.length} failures`);
+      }
+      const aggDuration = Date.now() - aggStartTime;
+      logger.info(`[Cycle ${cycleNumber}] Aggregation completed in ${aggDuration}ms: ${cfg.simco.realms.length - aggFailures.length} ok, ${aggFailures.length} failed`);
+    }
+
+    if (cfg.macroSettings.enableProfitMargins) {
+      const profitStart = Date.now();
+      try {
+        const profitResult = await runAllProfitMargins();
+        if (!profitResult.ok) {
+          logger.warn("Profit margins pipeline had failures");
+        }
+        logger.info(`[Cycle ${cycleNumber}] Profit margins completed in ${Date.now() - profitStart}ms`);
+      } catch (err) {
+        logger.error('Profit margins pipeline failed', err);
+      }
+    }
+
+    // Run history sync in parallel
+    if (cfg.macroHistory.enableHistoryIngestion) {
+      const historyStart = Date.now();
+      try {
+        const historyResult = await runAllHistorySync();
+        if (!historyResult.ok) {
+          logger.warn("History sync pipeline had failures");
+        }
+        logger.info(`[Cycle ${cycleNumber}] History sync completed in ${Date.now() - historyStart}ms`);
+      } catch (err) {
+        logger.error('History sync pipeline failed', err);
+      }
+    }
+
+    // Government orders (once per week on Wednesday after 13:00 UTC)
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg) && lastGovernmentOrdersFetchDate !== todayStr) {
+      const govStart = Date.now();
+      try {
+        const govResult = await runAllGovernmentOrders();
+        if (!govResult.ok) {
+          logger.warn("Government orders pipeline had failures");
+        } else {
+          lastGovernmentOrdersFetchDate = todayStr;
+          logger.info(`[Cycle ${cycleNumber}] Government orders fetched in ${Date.now() - govStart}ms`);
+        }
+      } catch (err) {
+        logger.error('Government orders pipeline failed', err);
+      }
+    }
+
+    // Restaurant retail info (every 4 cycles = ~6 hours with default 90min interval)
+    const isRestaurantCycle = cycleNumber % 4 === 0;
+    if (isRestaurantCycle) {
+      logger.info(`[Cycle ${cycleNumber}] Running restaurant retail info job (every 4th cycle)...`);
+      const restaurantStart = Date.now();
+      try {
+        const restaurantResult = await runFetchRestaurantRetailInfo();
+        const duration = Date.now() - restaurantStart;
+        if (!restaurantResult.ok) {
+          logger.warn(`[Cycle ${cycleNumber}] Restaurant retail info fetch failed after ${duration}ms`, restaurantResult.error ?? "");
+        } else {
+          logger.info(`[Cycle ${cycleNumber}] Restaurant retail info fetched in ${duration}ms: ${restaurantResult.count} quality levels`);
+          // Log sample data for debugging
+          if (restaurantResult.data && restaurantResult.data.length > 0) {
+            logger.debug(`[Cycle ${cycleNumber}] Restaurant data sample: Q0 avgPrice=${restaurantResult.data[0]?.averagePrice}, saturation=${restaurantResult.data[0]?.saturation}, dataPoints=${restaurantResult.data[0]?.retailData?.length}`);
+          }
+        }
+      } catch (err) {
+        const duration = Date.now() - restaurantStart;
+        logger.error(`[Cycle ${cycleNumber}] Restaurant retail info pipeline failed after ${duration}ms`, err);
+      }
+    } else {
+      logger.debug(`[Cycle ${cycleNumber}] Skipping restaurant retail info (cycle ${cycleNumber} % 4 = ${cycleNumber % 4})`);
+    }
+
+    // Public dataset export (every cycle)
+    const exportStart = Date.now();
+    try {
+      const exportResult = await runPublicExportPipeline();
+      if (!exportResult.ok) {
+        logger.warn("Public export pipeline had failures", exportResult.errors.join(", "));
+      }
+      logger.info(`[Cycle ${cycleNumber}] Public export completed in ${Date.now() - exportStart}ms: ${exportResult.files.length} files`);
+    } catch (err) {
+      logger.error('Public export pipeline failed', err);
+    }
+
+    // Compression (periodic)
+    if (cfg.featureFlags.enableCompression && cycleNumber - lastCompressCycle >= getCompressIntervalCycles(cfg.schedules.compressionIntervalDays, cfg.schedules.fetchIntervalMinutes)) {
+      const compressStart = Date.now();
+      try {
+        for (const realm of cfg.simco.realms) {
+          const compressResult = runCompression(cfg.dataRepo.path, realm, cfg.schedules.snapshotRetentionDays);
+          if (!compressResult.ok) logger.warn(`[realm ${realm}] Compression failed`, compressResult.error ?? "");
+        }
+        lastCompressCycle = cycleNumber;
+        logger.info(`[Cycle ${cycleNumber}] Compression completed in ${Date.now() - compressStart}ms for ${cfg.simco.realms.length} realms`);
+      } catch (err) {
+        logger.error('Compression pipeline failed', err);
+      }
+    }
+
+    const cycleElapsed = Date.now() - cycleStart;
+    const totalElapsed = Date.now() - startedAt;
+    logger.info(`--- Cycle ${cycleNumber} done in ${cycleElapsed}ms (uptime: ${formatUptime(totalElapsed)}) ---`);
+
+    emit("scheduler:cycle-end", { cycle: cycleNumber, cycleElapsed, uptime: totalElapsed, ok: fetchResult.ok });
+
+    if (shuttingDown) break;
+
+    logger.info(`Next fetch in ${cfg.schedules.fetchIntervalMinutes} min`);
+
+    await sleep(intervalMs);
+  }
+
+  schedulerRunning = false;
+  logger.info("Scheduler stopped gracefully");
+}

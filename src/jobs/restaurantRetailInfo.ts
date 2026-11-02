@@ -66,7 +66,7 @@ async function fetchRestaurantRetailInfoFromApi(): Promise<RestaurantQualityData
   }
 }
 
-export async function runFetchRestaurantRetailInfo(): Promise<{ ok: boolean; error?: string; count?: number }> {
+export async function runFetchRestaurantRetailInfo(): Promise<{ ok: boolean; error?: string; count?: number; data?: RestaurantQualityData[] }> {
   const startTime = Date.now();
   const jobId = `restaurant-retail-${Date.now()}`;
   
@@ -124,7 +124,7 @@ export async function runFetchRestaurantRetailInfo(): Promise<{ ok: boolean; err
     
     logger.info(`[${jobId}] Snapshot written successfully in ${writeDuration}ms (total: ${totalDuration}ms)`);
     logger.info(`[${jobId}] Restaurant retail info fetched: ${data.length} quality levels`);
-    return { ok: true, count: data.length };
+    return { ok: true, count: data.length, data };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const duration = Date.now() - startTime;
