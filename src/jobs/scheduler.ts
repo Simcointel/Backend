@@ -154,7 +154,8 @@ export async function startScheduler(): Promise<void> {
 
   while (!shuttingDown) {
     cycle++;
-    await saveCycleCounter(cfg, cycle);
+    // Fire-and-forget cycle counter save - don't block the scheduler
+    saveCycleCounter(cfg, cycle).catch(err => logger.warn("Cycle counter save failed", err));
     const cycleStart = Date.now();
     logger.info(`--- Cycle ${cycle} ---`);
 
