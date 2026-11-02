@@ -24,8 +24,11 @@ export interface RestaurantRetailInfoSnapshot {
   data: RestaurantQualityData[];
 }
 
+// Query form returns the full resource list; without it the API only returns dbLetter 150.
+const RESTAURANT_MENU_RESOURCE_IDS = new Set([117, 119, 121, 122, 123, 124, 125, 126, 129, 130, 131, 132, 134, 142, 143]);
+
 async function fetchRestaurantRetailInfoFromApi(): Promise<RestaurantQualityData[]> {
-  const apiUrl = "https://www.simcompanies.com/api/v4/1/resources-retail-info/";
+  const apiUrl = "https://www.simcompanies.com/api/v4/1/resources-retail-info/?dbLetter=117";
   
   try {
     const response = await fetch(apiUrl, {
@@ -41,23 +44,25 @@ async function fetchRestaurantRetailInfoFromApi(): Promise<RestaurantQualityData
 
     const rawData = await response.json() as any[];
     
-    // Normalize the data - API returns array of quality data objects
+    // Keep only restaurant menu resources; the query form omits quality on some rows.
     const normalizedData: RestaurantQualityData[] = [];
-    
+
     for (const item of rawData) {
-      if (item && typeof item.quality === "number") {
-        normalizedData.push({
-          quality: item.quality,
-          dbLetter: item.dbLetter || 150,
-          averagePrice: item.averagePrice || 0,
-          saturation: item.saturation || 0,
-          retailData: item.retailData || [],
-        });
-      }
+      const dbLetter = Number(item?.dbLetter);
+      if (!RESTAURANT_MENU_RESOURCE_IDS.has(dbLetter)) continue;
+      if (!Array.isArray(item.retailData) || item.retailData.length === 0) continue;
+
+      normalizedData.push({
+        quality: typeof item.quality === "number" ? item.quality : 0,
+        dbLetter,
+        averagePrice: item.averagePrice || 0,
+        saturation: item.saturation || 0,
+        retailData: item.retailData,
+      });
     }
 
-    // Sort by quality
-    normalizedData.sort((a, b) => a.quality - b.quality);
+    // Sort by resource, then quality
+    normalizedData.sort((a, b) => a.dbLetter - b.dbLetter || a.quality - b.quality);
     
     return normalizedData;
   } catch (error) {
@@ -76,7 +81,7 @@ export async function runFetchRestaurantRetailInfo(): Promise<{ ok: boolean; err
     const data = await fetchRestaurantRetailInfoFromApi();
     const fetchDuration = Date.now() - startTime;
     
-    logger.info(`[${jobId}] API fetch completed in ${fetchDuration}ms, got ${data.length} quality levels`);
+    logger.info(`[${jobId}] API fetch completed in ${fetchDuration}ms, got ${data.length} restaurant resource rows`);
     
     if (!data.length) {
       logger.warn(`[${jobId}] No data returned from API`);
@@ -84,7 +89,7 @@ export async function runFetchRestaurantRetailInfo(): Promise<{ ok: boolean; err
     }
 
     // Log quality levels and sample data for debugging
-    logger.info(`[${jobId}] Quality levels: ${data.map(d => `Q${d.quality}`).join(", ")}`);
+    logger.info(`[${jobId}] Resources: ${[...new Set(data.map(d => d.dbLetter))].join(", ")}`);
     if (data.length > 0) {
       const sample = data[0];
       logger.info(`[${jobId}] Sample Q${sample.quality}: avgPrice=${sample.averagePrice}, saturation=${sample.saturation}, retailDataPoints=${sample.retailData.length}`);
@@ -123,7 +128,7 @@ export async function runFetchRestaurantRetailInfo(): Promise<{ ok: boolean; err
     const totalDuration = Date.now() - startTime;
     
     logger.info(`[${jobId}] Snapshot written successfully in ${writeDuration}ms (total: ${totalDuration}ms)`);
-    logger.info(`[${jobId}] Restaurant retail info fetched: ${data.length} quality levels`);
+    logger.info(`[${jobId}] Restaurant retail info fetched: ${data.length} restaurant resource rows`);
     return { ok: true, count: data.length, data };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
