@@ -12,10 +12,17 @@ import { runAllHistorySync } from "./macroHistory.js";
 import { runAllGovernmentOrders } from "./governmentOrders.js";
 import { runFetchRestaurantRetailInfo } from "./restaurantRetailInfo.js";
 import { stopRateLimiter } from "../api/rateLimiter.js";
+import { githubFetch } from "../storage/dataRepoWriter.js";
 
 let shuttingDown = false;
 let schedulerRunning = false;
 let schedulerStartedAt = 0;
+
+const CYCLE_COUNTER_PATH = "meta/scheduler-cycle.json";
+
+let lastCompressCycle = 1;
+let lastGovernmentOrdersCycle = 0;
+let lastGovernmentOrdersFetchDate = '';
 
 export function isSchedulerRunning(): boolean {
   return schedulerRunning;
@@ -38,17 +45,82 @@ function formatUptime(ms: number): string {
   return `${h}h ${m % 60}m ${s % 60}s`;
 }
 
-let lastCompressCycle = 1;
-let lastGovernmentOrdersCycle = 0;
-let lastGovernmentOrdersFetchDate = '';
+async function loadCycleCounter(cfg: ReturnType<typeof loadConfig>): Promise<number> {
+  try {
+    const api = `https://api.github.com/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}`;
+    const headers = {
+      Authorization: `Bearer ${cfg.dataRepo.githubToken}`,
+      "Content-Type": "application/json",
+      "User-Agent": "SimcoIntel-Backend",
+      Accept: "application/vnd.github.v3+json",
+    };
+    const res = await githubFetch(`${api}/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}/contents/${CYCLE_COUNTER_PATH}?ref=${cfg.dataRepo.branch}`, { headers });
+    if (res.ok) {
+      const data = await res.json() as { content: string; sha: string };
+      const content = Buffer.from(data.content, "base64").toString("utf-8");
+      const parsed = JSON.parse(content);
+      return parsed.cycle ?? 0;
+    }
+  } catch {
+    // Counter doesn't exist yet or error reading
+  }
+  return 0;
+}
+
+async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: number): Promise<void> {
+  if (!cfg.dataRepo.githubToken) return;
+  
+  try {
+    const api = `https://api.github.com/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}`;
+    const headers = {
+      Authorization: `Bearer ${cfg.dataRepo.githubToken}`,
+      "Content-Type": "application/json",
+      "User-Agent": "SimcoIntel-Backend",
+      Accept: "application/vnd.github.v3+json",
+    };
+    
+    // Get existing SHA if file exists
+    let sha: string | null = null;
+    try {
+      const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}?ref=${cfg.dataRepo.branch}`, { headers: { Authorization: `Bearer ${cfg.dataRepo.githubToken}`, Accept: "application/vnd.github.v3+json" } });
+      if (res.ok) {
+        const data = await res.json() as { sha: string };
+        sha = data.sha;
+      }
+    } catch { /* ignore */ }
+
+    const content = JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2);
+    const body: Record<string, unknown> = {
+      message: `Update scheduler cycle counter: ${cycle}`,
+      content: Buffer.from(JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2), "utf-8").toString("base64"),
+      branch: cfg.dataRepo.branch,
+    };
+    if (sha) (body as any).sha = sha;
+
+    const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${cfg.dataRepo.githubToken}`, "Content-Type": "application/json", "User-Agent": "SimcoIntel-Backend", Accept: "application/vnd.github.v3+json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn(`Failed to save cycle counter: ${res.status} ${text}`);
+    }
+  } catch (err) {
+    logger.warn("Failed to save cycle counter", err);
+  }
+}
 
 export async function startScheduler(): Promise<void> {
   const cfg = loadConfig();
   const intervalMs = Math.max(60_000, cfg.schedules.fetchIntervalMinutes * 60 * 1000);
-  let cycle = 0;
+  
+  // Load persisted cycle counter
+  let cycle = await loadCycleCounter(cfg);
   const startedAt = Date.now();
   schedulerRunning = true;
-  schedulerStartedAt = startedAt;
+  schedulerStartedAt = Date.now();
 
   logger.info("========================================");
   logger.info("Scheduler started");
@@ -70,6 +142,7 @@ export async function startScheduler(): Promise<void> {
 
   while (!shuttingDown) {
     cycle++;
+    await saveCycleCounter(cfg, cycle);
     const cycleStart = Date.now();
     logger.info(`--- Cycle ${cycle} ---`);
 
