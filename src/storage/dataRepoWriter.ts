@@ -56,7 +56,8 @@ export class DataRepoWriter implements IDataRepoWriter {
 
   async writeSnapshot(snapshot: SnapshotPayload, subDir: string): Promise<string> {
     const filename = `${snapshot.snapshotType}-${snapshot.timestamp}.json`;
-    const content = JSON.stringify(snapshot.data, null, 2);
+    // Write full snapshot object (timestamp, snapshotType, data) for Web frontend compatibility
+    const content = JSON.stringify(snapshot, null, 2);
     const path = `${subDir}/${filename}`.replace(/\\/g, "/");
     const contentSize = Buffer.byteLength(content, "utf-8");
 
