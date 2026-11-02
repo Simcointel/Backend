@@ -207,21 +207,8 @@ export function createApp(): Express {
 
   app.use(express.json({ limit: '1mb' }));
 
-    app.use((req: Request, res: Response, next: NextFunction) => {
-      next();
-    });
-
-    // Enable CORS for ALL requests (including API routes)
-    app.use((req: Request, res: Response, next: NextFunction) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-      res.setHeader("Access-Control-Max-Age", "86400");
-      if (req.method === "OPTIONS") {
-        return res.sendStatus(204);
-      }
-      next();
-    });
+    // Admin panel is served from same origin (/admin), no CORS needed
+    // CORS removed for same-origin admin + API
 
   // Serve admin dashboard from /admin
   // In Vercel, __dirname is the dist folder, admin is at project root
