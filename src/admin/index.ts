@@ -12,6 +12,7 @@ import { generateHealthReport } from "../health/health.js";
 import { getFailureStatus } from "../jobs/failureTracker.js";
 import { runAllGovernmentOrders } from "../jobs/governmentOrders.js";
 import { runPublicExportPipeline } from "../jobs/publicExportPipeline.js";
+import { runFetchRestaurantRetailInfo } from "../jobs/restaurantRetailInfo.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -63,6 +64,11 @@ export async function executeAction(action: string, params?: Record<string, unkn
 
     case "public-export": {
       const result = await runPublicExportPipeline();
+      return { action, ok: result.ok, result };
+    }
+
+    case "restaurant-sync": {
+      const result = await runFetchRestaurantRetailInfo();
       return { action, ok: result.ok, result };
     }
 

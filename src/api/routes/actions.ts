@@ -6,7 +6,7 @@ import { startScheduler, shutdown, isSchedulerRunning } from "../../jobs/schedul
 import { RouteParams } from "../../api/router.js";
 import { logger } from "../../logging/logger.js";
 
-const VALID_ACTIONS = ["fetch", "aggregate", "analytics", "cleanup", "compress", "status", "reload-config", "get-config", "update-config", "set-log-level", "government-orders", "public-export"];
+const VALID_ACTIONS = ["fetch", "aggregate", "analytics", "cleanup", "compress", "status", "reload-config", "get-config", "update-config", "set-log-level", "government-orders", "public-export", "restaurant-sync"];
 
 export async function handleAction(req: IncomingMessage, res: ServerResponse, params: RouteParams, body: Record<string, unknown> | undefined, action: string): Promise<void> {
   if (!VALID_ACTIONS.includes(action)) {
