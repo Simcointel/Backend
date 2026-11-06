@@ -156,17 +156,31 @@ class AdminDashboard {
             // Ensure /api prefix — all server routes live under /api/
             const apiEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
             const url = `${baseUrl}${apiEndpoint}`;
+            const secret = localStorage.getItem('adminSecret');
             const opts = {
+                ...options,
                 headers: {
                     'Content-Type': 'application/json',
+                    ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
                     ...options.headers
-                },
-                ...options
+                }
             };
             if (options.body && typeof options.body === 'object') {
                 opts.body = JSON.stringify(options.body);
             }
             const res = await fetch(url, opts);
+            if (res.status === 401) {
+                // Allow one retry with user-entered secret; if that fails, don't loop
+                if (!this._authRetryAttempted) {
+                    this._authRetryAttempted = true;
+                    const entered = prompt('Admin secret required');
+                    if (entered) {
+                        localStorage.setItem('adminSecret', entered);
+                        return this.api(endpoint, options);
+                    }
+                }
+                this._authRetryAttempted = false;
+            }
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ error: 'Request failed' }));
                 throw new Error(err.error || `HTTP ${res.status}`);

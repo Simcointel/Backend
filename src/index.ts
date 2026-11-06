@@ -12,6 +12,11 @@ import { executeAction } from "./admin/index.js";
 import { startServer } from "./api/server.js";
 import { envNumber } from "./config/env.js";
 import { runPublicExportPipeline } from "./jobs/publicExportPipeline.js";
+import { runMacroPipeline } from "./jobs/macroPipeline.js";
+import { runAllRealmMetrics } from "./jobs/realmMetrics.js";
+import { runAllPriceIndexes } from "./jobs/priceIndex.js";
+import { runAllInflationTracking } from "./jobs/macroInflation.js";
+import { runAllHistorySync, runAllBackfills, runAllMacroArchives } from "./jobs/macroHistory.js";
 
 async function main() {
   const logJson = (obj: unknown) => logger.info(JSON.stringify(obj, null, 2));
@@ -71,23 +76,60 @@ async function main() {
     return;
   }
 
-  if (args.includes("public-export")) {
+  const cmd = args[1];
+  const dryRun = args.includes("--dry-run");
+
+  if (cmd === "public-export") {
     const result = await runPublicExportPipeline();
     logJson(result);
     return;
   }
 
-  if (args.includes("status")) {
+  if (cmd === "macro") {
+    logJson(await runMacroPipeline());
+    return;
+  }
+
+  if (cmd === "realm-status") {
+    logJson(await runAllRealmMetrics());
+    return;
+  }
+
+  if (cmd === "price-indexes") {
+    logJson(await runAllPriceIndexes());
+    return;
+  }
+
+  if (cmd === "inflation") {
+    logJson(await runAllInflationTracking());
+    return;
+  }
+
+  if (cmd === "macro-history") {
+    logJson(await runAllHistorySync());
+    return;
+  }
+
+  if (cmd === "macro-backfill") {
+    logJson(await runAllBackfills());
+    return;
+  }
+
+  if (cmd === "macro-archive") {
+    logJson(runAllMacroArchives(dryRun));
+    return;
+  }
+
+  if (cmd === "status") {
     const report = await generateHealthReport();
     const failures = getFailureStatus(cfg.schedules.consecutiveFailureThreshold);
     logJson({ health: report, failures });
     return;
   }
 
-  if (args.includes("admin")) {
-    const idx = args.indexOf("admin");
-    const action = args[idx + 1];
-    const paramsArg = args[idx + 2];
+  if (cmd === "admin") {
+    const action = args[2];
+    const paramsArg = args[3];
     let params: Record<string, unknown> | undefined;
     if (paramsArg) {
       try { params = JSON.parse(paramsArg); } catch { params = {}; }
@@ -99,7 +141,7 @@ async function main() {
     return;
   }
 
-  if (args.includes("server")) {
+  if (cmd === "server") {
     const port = envNumber("HTTP_PORT", 3001);
     startServer(port);
     return;

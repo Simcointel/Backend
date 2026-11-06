@@ -1,5 +1,5 @@
 import { writeFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from "fs";
-import { resolve } from "path";
+import { resolve, relative, sep } from "path";
 import { logger } from "../logging/logger.js";
 import { loadConfig } from "../config/index.js";
 import { DataRepoWriter, getDataRepoWriter } from "../storage/dataRepoWriter.js";
@@ -13,7 +13,6 @@ import {
 import { runMacroPipeline } from "./macroPipeline.js";
 import { computeProfitMargins } from "./profitMargins.js";
 import { runRetailSummary } from "./retailSummary.js";
-import { runAllGovernmentOrders } from "./governmentOrders.js";
 import { validatePublicDataset } from "./validation.js";
 
 export interface PublicExportResult {
@@ -53,14 +52,6 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
 
   try {
     if (!existsSync(publicDir)) mkdirSync(publicDir, { recursive: true });
-
-    // Fetch government orders once for all realms
-    let govOrdersResult: { results: Array<{ realm: number; ok: boolean; count: number }> } | null = null;
-    try {
-      govOrdersResult = await runAllGovernmentOrders();
-    } catch (err) {
-      logger.warn(`Failed to fetch government orders for export: ${err}`);
-    }
 
     // Per-realm datasets
     for (const realm of realms) {
@@ -106,16 +97,14 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
         logger.warn(`[realm ${realm}] Failed to export margins: ${err}`);
       }
 
-      // 6. Government Orders
+      // 6. Government Orders (last snapshot written by the scheduled job)
+      // Note: Relies on the scheduled government-orders job having run recently.
+      // If the scheduled job hasn't run or failed, this will silently skip with a warning.
       try {
-        const realmResult = govOrdersResult?.results.find(r => r.realm === realm);
-        if (realmResult?.ok && realmResult.count > 0) {
-          // Fetch the latest saved government orders snapshot
-          const govOrders = await loadLatestGovernmentOrders(realm);
-          if (govOrders && validatePublicDataset("government-orders", govOrders.orders).valid) {
-            const gof = writeJson(rd, "government-orders.json", govOrders.orders);
-            if (gof) result.files.push(gof);
-          }
+        const govOrders = await loadLatestGovernmentOrders(realm);
+        if (govOrders && validatePublicDataset("government-orders", govOrders.orders).valid) {
+          const gof = writeJson(rd, "government-orders.json", govOrders.orders);
+          if (gof) result.files.push(gof);
         }
       } catch (err) {
         logger.warn(`[realm ${realm}] Failed to export government orders: ${err}`);
@@ -141,7 +130,7 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
       generatedAt: new Date().toISOString(),
       realms,
       files: result.files.map((f) => ({
-        path: f.path.split("/public/")[1],
+        path: relative(publicDir, f.path).split(sep).join("/"),
         bytes: f.bytes,
       })),
     };
