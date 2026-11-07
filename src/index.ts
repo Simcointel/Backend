@@ -17,6 +17,7 @@ import { runAllRealmMetrics } from "./jobs/realmMetrics.js";
 import { runAllPriceIndexes } from "./jobs/priceIndex.js";
 import { runAllInflationTracking } from "./jobs/macroInflation.js";
 import { runAllHistorySync, runAllBackfills, runAllMacroArchives } from "./jobs/macroHistory.js";
+import { runAllResourcesFetch } from "./jobs/resources.js";
 
 async function main() {
   const logJson = (obj: unknown) => logger.info(JSON.stringify(obj, null, 2));
@@ -117,6 +118,11 @@ async function main() {
 
   if (cmd === "macro-archive") {
     logJson(runAllMacroArchives(dryRun));
+    return;
+  }
+
+  if (cmd === "resources") {
+    logJson(await runAllResourcesFetch());
     return;
   }
 

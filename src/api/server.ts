@@ -8,7 +8,7 @@ import { logger } from "../logging/logger.js";
 
 try { setDefaultResultOrder("ipv4first"); logger.info("DNS: IPv4-first resolution enabled"); } catch { /* pre-18.13 Node */ }
 import { Router } from "./router.js";
-import { sendSuccess, sendError, requestLogger } from "./middleware.js";
+import { sendError, requestLogger, isAdminAuthorized } from "./middleware.js";
 import { rateLimitMiddleware } from "./rateLimiter.js";
 import { handleHealth } from "./routes/health.js";
 import { handleStatus } from "./routes/status.js";
@@ -29,6 +29,7 @@ import {
   handlePublicIndexes,
   handlePublicInflation,
   handlePublicStatus,
+  handlePublicResources,
 } from "./routes/public.js";
 import {
   handlePublicExport,
@@ -49,10 +50,19 @@ function buildRouter(): Router {
 
   r.get("/api/config", (req, res) => handleListConfig(req, res));
   r.get("/api/config/:section", (req, res, params) => handleGetConfig(req, res, params.section));
-  r.put("/api/config/:section", (req, res, params) => handleUpdateConfig(req, res, params.section));
+  r.put("/api/config/:section", (req, res, params) => {
+    if (!isAdminAuthorized(req)) return sendError(res, 401, "Unauthorized");
+    return handleUpdateConfig(req, res, params.section);
+  });
 
-  r.post("/api/actions/:action", (req, res, params) => handleAction(req, res, params, undefined, params.action));
-  r.post("/api/actions/scheduler/:cmd", (req, res, params) => handleSchedulerControl(req, res, params, undefined, params.cmd));
+  r.post("/api/actions/:action", (req, res, params) => {
+    if (!isAdminAuthorized(req)) return sendError(res, 401, "Unauthorized");
+    return handleAction(req, res, params, undefined, params.action);
+  });
+  r.post("/api/actions/scheduler/:cmd", (req, res, params) => {
+    if (!isAdminAuthorized(req)) return sendError(res, 401, "Unauthorized");
+    return handleSchedulerControl(req, res, params, undefined, params.cmd);
+  });
 
   r.get("/api/snapshots", (req, res) => handleListSnapshots(req, res));
   r.get("/api/snapshots/:realm", (req, res, params) => handleListRealmSnapshots(req, res, params.realm));
@@ -73,6 +83,7 @@ function buildRouter(): Router {
   r.get("/api/public/macro", wrapRateLimited(handlePublicMacro));
   r.get("/api/public/indexes", wrapRateLimited(handlePublicIndexes));
   r.get("/api/public/inflation", wrapRateLimited(handlePublicInflation));
+  r.get("/api/public/resources", wrapRateLimited(handlePublicResources));
   r.get("/api/public/export", (req, res) => {
     if (!rateLimitMiddleware(req, res)) return;
     handlePublicExportList(res);
@@ -85,11 +96,6 @@ function buildRouter(): Router {
     r.get("/api/cron/cycle", (req, res) => handleCronCycle(req, res));
     r.post("/api/cron/trigger-fetch", (req, res) => handleTriggerFetch(req, res));
     r.get("/api/cron/trigger-fetch", (req, res) => handleTriggerFetch(req, res));
-
-    // Debug: test POST route
-    r.post("/api/test-post", (req, res, params, body) => {
-      sendSuccess(res, { received: true, body });
-    });
 
     return r;
 }

@@ -7,6 +7,7 @@ import {
   loadMacroIndexes,
   loadMacroInflation,
 } from "./publicData.js";
+import { loadLatestResources } from "../../jobs/resources.js";
 
 
 
@@ -55,8 +56,23 @@ export function handlePublicStatus(req: IncomingMessage, res: ServerResponse, _p
       macro: "/api/public/macro?realm=0",
       indexes: "/api/public/indexes?realm=0&limit=30",
       inflation: "/api/public/inflation?realm=0&limit=30",
+      resources: "/api/public/resources?realm=0",
       export: "/api/public/export/:dataset",
     },
     generatedAt: new Date().toISOString(),
   });
+}
+
+export function handlePublicResources(req: IncomingMessage, res: ServerResponse, _params: Record<string, string>, _body: unknown, query: URLSearchParams): void {
+  try {
+    const realm = parseInt(query.get("realm") ?? "0");
+    const data = loadLatestResources(realm);
+    if (!data) {
+      sendError(res, 404, `No resources data found for realm ${realm}`);
+      return;
+    }
+    sendSuccess(res, data);
+  } catch (err) {
+    sendError(res, 500, err instanceof Error ? err.message : "Failed to load resources");
+  }
 }
