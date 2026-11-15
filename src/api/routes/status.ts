@@ -5,6 +5,29 @@ import { getFailureStatus } from "../../jobs/failureTracker.js";
 import { loadConfig } from "../../config/index.js";
 import { isSchedulerRunning, getSchedulerUptime } from "../../jobs/scheduler.js";
 
+/**
+ * @swagger
+ * tags:
+ *   name: Status
+ *   description: System status endpoints
+ */
+
+/**
+ * @swagger
+ * /api/status:
+ *   get:
+ *     summary: Get system status including health, scheduler, and failures
+ *     tags: [Status]
+ *     responses:
+ *       200:
+ *         description: System status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/StatusResponse'
+ *       500:
+ *         description: Status check failed
+ */
 export async function handleStatus(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
     const cfg = loadConfig();

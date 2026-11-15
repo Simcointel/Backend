@@ -9,8 +9,36 @@ import {
 } from "./publicData.js";
 import { loadLatestResources } from "../../jobs/resources.js";
 
+/**
+ * @swagger
+ * tags:
+ *   name: Public
+ *   description: Public API endpoints (rate limited)
+ */
 
-
+/**
+ * @swagger
+ * /api/public/macro:
+ *   get:
+ *     summary: Get latest macro snapshot for a realm
+ *     tags: [Public]
+ *     parameters:
+ *       - in: query
+ *         name: realm
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Realm number
+ *     responses:
+ *       200:
+ *         description: Latest macro data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PublicMacro'
+ *       500:
+ *         description: Failed to load macro data
+ */
 export function handlePublicMacro(req: IncomingMessage, res: ServerResponse, _params: Record<string, string>, _body: unknown, query: URLSearchParams): void {
   try {
     const realm = parseInt(query.get("realm") ?? "0");
@@ -21,6 +49,35 @@ export function handlePublicMacro(req: IncomingMessage, res: ServerResponse, _pa
   }
 }
 
+/**
+ * @swagger
+ * /api/public/indexes:
+ *   get:
+ *     summary: Get price indexes (CPI, Core CPI, GDP) for a realm
+ *     tags: [Public]
+ *     parameters:
+ *       - in: query
+ *         name: realm
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Realm number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: Maximum number of entries
+ *     responses:
+ *       200:
+ *         description: Price indexes data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MacroIndexesResponse'
+ *       500:
+ *         description: Failed to load indexes
+ */
 export function handlePublicIndexes(req: IncomingMessage, res: ServerResponse, _params: Record<string, string>, _body: unknown, query: URLSearchParams): void {
   try {
     const realm = parseInt(query.get("realm") ?? "0");
@@ -32,6 +89,35 @@ export function handlePublicIndexes(req: IncomingMessage, res: ServerResponse, _
   }
 }
 
+/**
+ * @swagger
+ * /api/public/inflation:
+ *   get:
+ *     summary: Get inflation rates for a realm
+ *     tags: [Public]
+ *     parameters:
+ *       - in: query
+ *         name: realm
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Realm number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: Maximum number of entries
+ *     responses:
+ *       200:
+ *         description: Inflation data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MacroInflationResponse'
+ *       500:
+ *         description: Failed to load inflation
+ */
 export function handlePublicInflation(req: IncomingMessage, res: ServerResponse, _params: Record<string, string>, _body: unknown, query: URLSearchParams): void {
   try {
     const realm = parseInt(query.get("realm") ?? "0");
@@ -43,9 +129,20 @@ export function handlePublicInflation(req: IncomingMessage, res: ServerResponse,
   }
 }
 
-
-
-
+/**
+ * @swagger
+ * /api/public/status:
+ *   get:
+ *     summary: Get public API status and available endpoints
+ *     tags: [Public]
+ *     responses:
+ *       200:
+ *         description: API status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PublicStatus'
+ */
 export function handlePublicStatus(req: IncomingMessage, res: ServerResponse, _params?: Record<string, string>, _body?: unknown, _query?: URLSearchParams): void {
   const cfg = loadConfig();
   sendSuccess(res, {
@@ -63,6 +160,31 @@ export function handlePublicStatus(req: IncomingMessage, res: ServerResponse, _p
   });
 }
 
+/**
+ * @swagger
+ * /api/public/resources:
+ *   get:
+ *     summary: Get latest resources/profit margins for a realm
+ *     tags: [Public]
+ *     parameters:
+ *       - in: query
+ *         name: realm
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Realm number
+ *     responses:
+ *       200:
+ *         description: Resources/profit margins data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ProfitMarginsResponse'
+ *       404:
+ *         description: No resources data found for realm
+ *       500:
+ *         description: Failed to load resources
+ */
 export function handlePublicResources(req: IncomingMessage, res: ServerResponse, _params: Record<string, string>, _body: unknown, query: URLSearchParams): void {
   try {
     const realm = parseInt(query.get("realm") ?? "0");
@@ -77,6 +199,29 @@ export function handlePublicResources(req: IncomingMessage, res: ServerResponse,
   }
 }
 
+/**
+ * @swagger
+ * /api/public/alerts:
+ *   get:
+ *     summary: Get alerts for a realm
+ *     tags: [Public]
+ *     parameters:
+ *       - in: query
+ *         name: realm
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Realm number
+ *     responses:
+ *       200:
+ *         description: Alerts data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AlertsResponse'
+ *       500:
+ *         description: Failed to load alerts
+ */
 export function handlePublicAlerts(req: IncomingMessage, res: ServerResponse, _params: Record<string, string>, _body: unknown, query: URLSearchParams): void {
   try {
     const realm = parseInt(query.get("realm") ?? "0");

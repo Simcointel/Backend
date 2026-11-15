@@ -5,6 +5,42 @@ import { loadConfig } from "../../config/index.js";
 import { sendSuccess, sendError } from "../middleware.js";
 import { logger } from "../../logging/logger.js";
 
+/**
+ * @swagger
+ * tags:
+ *   name: Sync
+ *   description: Sim Companies sync endpoints
+ */
+
+/**
+ * @swagger
+ * /api/public/sync:
+ *   get:
+ *     summary: Sync data files from the data repository
+ *     tags: [Sync]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Maximum number of files to return
+ *     responses:
+ *       200:
+ *         description: Synced files
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SyncResponse'
+ *       401:
+ *         description: Invalid or missing sync secret
+ *       404:
+ *         description: Data repo directory not found
+ *       500:
+ *         description: Sync failed
+ */
 export function handleSync(req: IncomingMessage, res: ServerResponse): void {
   const secret = process.env.SYNC_SECRET;
   if (secret) {

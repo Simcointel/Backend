@@ -5,6 +5,13 @@ import { resolve, join } from "path";
 import { sendSuccess, sendError } from "../middleware.js";
 import { loadConfig } from "../../config/index.js";
 
+/**
+ * @swagger
+ * tags:
+ *   name: Macro
+ *   description: Macro economic data endpoints
+ */
+
 type HistoryEntry = { d: string; ac: number; cv: number; tb: number; bs: number; ph: string; cp: boolean };
 type HistoryFile = { r: number; y: number; e: HistoryEntry[] };
 
@@ -90,6 +97,106 @@ function limitEntries(entries: HistoryEntry[], limit?: string): HistoryEntry[] {
   return result;
 }
 
+/**
+ * @swagger
+ * /api/macro/history:
+ *   get:
+ *     summary: Get macro history entries for all realms
+ *     tags: [Macro]
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date filter
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date filter
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Maximum number of entries per realm
+ *     responses:
+ *       200:
+ *         description: Macro history for all realms
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MacroHistoryListResponse'
+ *       500:
+ *         description: Failed to load macro history
+ */
+export async function handleMacroListHistory(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  try {
+    const cfg = loadConfig();
+    const result: Record<string, { years: number[]; totalEntries: number }> = {};
+
+    for (const realm of cfg.simco.realms) {
+      const allYears = loadAllYears(realm);
+      const archivedYears = loadArchivedYears(realm);
+      let total = 0;
+      for (const yf of [...allYears, ...archivedYears]) {
+        total += yf.e.length;
+      }
+      result[`realm-${realm}`] = {
+        years: [...allYears, ...archivedYears].map((y) => y.y).sort(),
+        totalEntries: total,
+      };
+    }
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, 500, err instanceof Error ? err.message : "Failed to list macro history");
+  }
+}
+
+/**
+ * @swagger
+ * /api/macro/realm/{realm}/history:
+ *   get:
+ *     summary: Get macro history for a specific realm
+ *     tags: [Macro]
+ *     parameters:
+ *       - in: path
+ *         name: realm
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Realm number
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date filter
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date filter
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Maximum number of entries
+ *     responses:
+ *       200:
+ *         description: Macro history data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MacroHistoryResponse'
+ *       400:
+ *         description: Invalid realm
+ *       500:
+ *         description: Failed to load macro history
+ */
 export async function handleMacroHistory(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
   try {
     const r = parseRealmParam(realm);
@@ -123,6 +230,37 @@ export async function handleMacroHistory(req: IncomingMessage, res: ServerRespon
   }
 }
 
+/**
+ * @swagger
+ * /api/macro/indexes/{realm}:
+ *   get:
+ *     summary: Get price indexes for a realm
+ *     tags: [Macro]
+ *     parameters:
+ *       - in: path
+ *         name: realm
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Realm number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Maximum number of entries
+ *     responses:
+ *       200:
+ *         description: Price indexes data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MacroIndexesResponse'
+ *       400:
+ *         description: Invalid realm
+ *       500:
+ *         description: Failed to load indexes
+ */
 export async function handleMacroIndexes(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
   try {
     const r = parseRealmParam(realm);
@@ -159,6 +297,37 @@ export async function handleMacroIndexes(req: IncomingMessage, res: ServerRespon
   }
 }
 
+/**
+ * @swagger
+ * /api/macro/inflation/{realm}:
+ *   get:
+ *     summary: Get inflation data for a realm
+ *     tags: [Macro]
+ *     parameters:
+ *       - in: path
+ *         name: realm
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Realm number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Maximum number of entries
+ *     responses:
+ *       200:
+ *         description: Inflation data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MacroInflationResponse'
+ *       400:
+ *         description: Invalid realm
+ *       500:
+ *         description: Failed to load inflation
+ */
 export async function handleMacroInflation(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
   try {
     const r = parseRealmParam(realm);
@@ -195,6 +364,31 @@ export async function handleMacroInflation(req: IncomingMessage, res: ServerResp
   }
 }
 
+/**
+ * @swagger
+ * /api/macro/phases/{realm}:
+ *   get:
+ *     summary: Get economic phases for a realm
+ *     tags: [Macro]
+ *     parameters:
+ *       - in: path
+ *         name: realm
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Realm number
+ *     responses:
+ *       200:
+ *         description: Economic phases data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MacroPhases'
+ *       400:
+ *         description: Invalid realm
+ *       500:
+ *         description: Failed to load phases
+ */
 export async function handleMacroPhases(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
   try {
     const r = parseRealmParam(realm);
@@ -238,17 +432,42 @@ export async function handleMacroPhases(req: IncomingMessage, res: ServerRespons
   }
 }
 
+/**
+ * @swagger
+ * /api/macro/latest/{realm}:
+ *   get:
+ *     summary: Get latest macro data for a realm
+ *     tags: [Macro]
+ *     parameters:
+ *       - in: path
+ *         name: realm
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Realm number
+ *     responses:
+ *       200:
+ *         description: Latest macro data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MacroLatestResponse'
+ *       400:
+ *         description: Invalid realm
+ *       500:
+ *         description: Failed to load latest macro data
+ */
 export async function handleMacroLatest(req: IncomingMessage, res: ServerResponse, realm: string): Promise<void> {
   try {
 
     const r = parseRealmParam(realm);
     if (r === null) return sendError(res, 400, "Invalid realm");
-  
-  
+
+
     const allYears = loadAllYears(r);
     const archivedYears = loadArchivedYears(r);
     const allYearsFiles = [...allYears, ...archivedYears];
-  
+
     let latestEntry: HistoryEntry | null = null;
     for (const yf of allYearsFiles) {
       if (yf.e.length > 0) {
@@ -258,7 +477,7 @@ export async function handleMacroLatest(req: IncomingMessage, res: ServerRespons
         }
       }
     }
-  
+
     const indexesDir = resolve(getDataRoot(), "aggregates", "indexes", `realm-${r}`);
     let latestIndexes: unknown = null;
     if (existsSync(indexesDir)) {
@@ -277,7 +496,7 @@ export async function handleMacroLatest(req: IncomingMessage, res: ServerRespons
         } catch { /* ignore */ }
       }
     }
-  
+
     const inflationDir = resolve(getDataRoot(), "aggregates", "inflation", `realm-${r}`);
     let latestInflation: unknown = null;
     if (existsSync(inflationDir)) {
@@ -296,39 +515,15 @@ export async function handleMacroLatest(req: IncomingMessage, res: ServerRespons
         } catch { /* ignore */ }
       }
     }
-  
+
     sendSuccess(res, {
       realm: r,
       latestHistory: latestEntry,
       latestIndexes,
       latestInflation,
     });
-  
+
   } catch (err) {
     sendError(res, 500, err instanceof Error ? err.message : "Failed to load latest macro data");
-  }
-}
-
-export async function handleMacroListHistory(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  try {
-    const cfg = loadConfig();
-    const result: Record<string, { years: number[]; totalEntries: number }> = {};
-
-    for (const realm of cfg.simco.realms) {
-      const allYears = loadAllYears(realm);
-      const archivedYears = loadArchivedYears(realm);
-      let total = 0;
-      for (const yf of [...allYears, ...archivedYears]) {
-        total += yf.e.length;
-      }
-      result[`realm-${realm}`] = {
-        years: [...allYears, ...archivedYears].map((y) => y.y).sort(),
-        totalEntries: total,
-      };
-    }
-
-    sendSuccess(res, result);
-  } catch (err) {
-    sendError(res, 500, err instanceof Error ? err.message : "Failed to list macro history");
   }
 }

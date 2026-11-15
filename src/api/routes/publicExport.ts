@@ -8,6 +8,14 @@ import {
   loadMacroInflation,
 } from "./publicData.js";
 import { computeProfitMargins } from "../../jobs/profitMargins.js";
+
+/**
+ * @swagger
+ * tags:
+ *   name: Public
+ *   description: Public API endpoints (rate limited)
+ */
+
 type Dataset =
   | "macro" | "history" | "indexes" | "inflation" | "margins";
 
@@ -66,6 +74,54 @@ function getDataset(name: string, realm: number, limit: number): { data: unknown
   }
 }
 
+/**
+ * @swagger
+ * /api/public/export/{dataset}:
+ *   get:
+ *     summary: Export dataset in JSON or CSV format
+ *     tags: [Public]
+ *     parameters:
+ *       - in: path
+ *         name: dataset
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [macro, history, indexes, inflation, margins]
+ *         description: Dataset name
+ *       - in: query
+ *         name: realm
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Realm number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Maximum number of entries
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [json, csv]
+ *           default: json
+ *         description: Output format
+ *     responses:
+ *       200:
+ *         description: Dataset data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ExportResponse'
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *       404:
+ *         description: No data for dataset
+ *       500:
+ *         description: Failed to load dataset
+ */
 export function handlePublicExport(req: IncomingMessage, res: ServerResponse, params: Record<string, string>, _body: unknown, query: URLSearchParams): void {
   const dataset = (params.dataset ?? "dashboard") as Dataset;
   const realm = parseInt(query.get("realm") ?? "0");
@@ -96,6 +152,20 @@ export function handlePublicExport(req: IncomingMessage, res: ServerResponse, pa
   });
 }
 
+/**
+ * @swagger
+ * /api/public/export:
+ *   get:
+ *     summary: List available export datasets
+ *     tags: [Public]
+ *     responses:
+ *       200:
+ *         description: List of available datasets
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ExportListResponse'
+ */
 export function handlePublicExportList(res: ServerResponse): void {
   const datasets: { name: string; description: string; url: string }[] = [
     { name: "macro", description: "Latest macro snapshot for a realm", url: "/api/public/export/macro?realm=0" },
