@@ -40,6 +40,8 @@ import { handleSync } from "./routes/sync.js";
 import { handleCronCycle, handleTriggerFetch } from "./routes/cron.js";
 import { reloadConfig } from "../config/index.js";
 import { getBaseUrl } from "./urlHelper.js";
+import { generateSwaggerSpec, swaggerUiOptions } from "../config/swagger.js";
+import swaggerUi from "swagger-ui-express";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -201,6 +203,31 @@ function serveStaticFiles(app: Express, staticDir: string): void {
 export function createApp(): Express {
   const app = express();
   const router = buildRouter();
+
+  ensureDataDir();
+
+  // Swagger UI and OpenAPI spec
+  const swaggerUiOptions = {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: "SimcoIntel API Documentation",
+  };
+  app.use("/api/docs", swaggerUi.serve, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const spec = await generateSwaggerSpec();
+      swaggerUi.setup(spec, swaggerUiOptions)(req, res, next);
+    } catch (err) {
+      next(err);
+    }
+  });
+  app.get("/api/openapi.json", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const spec = await generateSwaggerSpec();
+      res.setHeader("Content-Type", "application/json");
+      res.send(spec);
+    } catch (err) {
+      next(err);
+    }
+  });
 
   ensureDataDir();
 

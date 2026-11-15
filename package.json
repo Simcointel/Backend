@@ -42,12 +42,16 @@
     "@vercel/connect": "^2.4.1",
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
     "undici": "^8.12.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^22.13.0",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "@vitest/coverage-v8": "^4.1.7",
     "fs-extra": "^11.4.1",
     "ts-node": "^10.9.2",
