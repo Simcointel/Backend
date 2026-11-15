@@ -13,6 +13,7 @@ import {
 import { runMacroPipeline } from "./macroPipeline.js";
 import { computeProfitMargins } from "./profitMargins.js";
 import { runRetailSummary } from "./retailSummary.js";
+import { runCooperincDataJob, CalculatorLiveData } from "./cooperincDataJob.js";
 import { validatePublicDataset } from "./validation.js";
 
 export interface PublicExportResult {
@@ -121,6 +122,18 @@ export async function runPublicExportPipeline(): Promise<PublicExportResult> {
         }
       } catch (err) {
         logger.warn(`[realm ${realm}] Failed to export retail data: ${err}`);
+      }
+
+      // 8. Calculator Live Data (for all calculators)
+      try {
+        const liveResults = await runCooperincDataJob();
+        const realmResult = liveResults.find(r => r.realm === realm);
+        if (realmResult?.ok && realmResult.data) {
+          const clf = writeJson(rd, "calculator-live.json", realmResult.data);
+          if (clf) result.files.push(clf);
+        }
+      } catch (err) {
+        logger.warn(`[realm ${realm}] Failed to export calculator live data: ${err}`);
       }
     }
 

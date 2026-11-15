@@ -3,12 +3,14 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { createRequire } from "module";
 import { loadEnv, envString, envNumber } from "./env.js";
+import { logger } from "../logging/logger.js";
 import type {
   SimcoIntelConfig,
   FormulaConfig,
   ScheduleConfig,
   FeatureFlags,
   SimcoConfig,
+  SimcoToolsConfig,
   DataRepoConfig,
   LoggingConfig,
   AlertConfig,
@@ -24,6 +26,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let cached: SimcoIntelConfig | null = null;
 
+const EXPECTED_CONFIG_FILES = [
+  "formulas",
+  "schedules",
+  "featureFlags",
+  "macroIndexes",
+  "macroSettings",
+  "macroHistory",
+  "governmentOrders",
+] as const;
+
 function findConfigPaths(): string[] {
   const cwd = process.cwd();
   return [resolve(cwd, "config"), resolve(__dirname, "..", "..", "config")];
@@ -31,7 +43,12 @@ function findConfigPaths(): string[] {
 
 function loadJson<T>(basePath: string, name: string): T | null {
   const file = resolve(basePath, `${name}.json`);
-  if (!existsSync(file)) return null;
+  if (!existsSync(file)) {
+    if (EXPECTED_CONFIG_FILES.includes(name as typeof EXPECTED_CONFIG_FILES[number])) {
+      logger.warn(`[Config] Expected config file not found: ${file}`);
+    }
+    return null;
+  }
   return JSON.parse(readFileSync(file, "utf-8")) as T;
 }
 
@@ -161,6 +178,10 @@ export function loadConfig(): SimcoIntelConfig {
     apiBaseUrl: envString("SIMCO_API_BASE_URL", "https://api.simcotools.com/v1/realms"),
   };
 
+  const simcoTools: SimcoToolsConfig = {
+    apiKey: envString("SIMCO_TOOLS_API_KEY", ""),
+  };
+
   const dataRepo: DataRepoConfig = {
     path: envString("DATA_REPO_PATH", existsSync("/tmp/data-repo") ? "/tmp/data-repo" : "../Data"),
     githubToken: envString("GITHUB_TOKEN", ""),
@@ -177,7 +198,7 @@ export function loadConfig(): SimcoIntelConfig {
     webhookUrl: envString("ALERT_WEBHOOK_URL", ""),
   };
 
-  cached = { simco, dataRepo, logging, formulas, schedules, featureFlags, alerts, macroIndexes, macroSettings, macroHistory, governmentOrders };
+  cached = { simco, simcoTools, dataRepo, logging, formulas, schedules, featureFlags, alerts, macroIndexes, macroSettings, macroHistory, governmentOrders };
     return cached;
   }
 

@@ -11,6 +11,7 @@ import { runAllProfitMargins } from "./profitMargins.js";
 import { runAllHistorySync } from "./macroHistory.js";
 import { runAllGovernmentOrders } from "./governmentOrders.js";
 import { runFetchRestaurantRetailInfo } from "./restaurantRetailInfo.js";
+import { runPhaseCoefficientJob } from "../analytics/phaseCoefficients.js";
 import { stopRateLimiter } from "../api/rateLimiter.js";
 import { githubFetch } from "../storage/dataRepoWriter.js";
 
@@ -22,7 +23,8 @@ const CYCLE_COUNTER_PATH = "meta/scheduler-cycle.json";
 
 let lastCompressCycle = 1;
 let lastGovernmentOrdersCycle = 0;
-let lastGovernmentOrdersFetchDate = '';
+let lastGovernmentOrdersFetchWeek = '';
+let lastPhaseCoefficientWeek = '';
 
 export function isSchedulerRunning(): boolean {
   return schedulerRunning;
@@ -47,7 +49,7 @@ async function loadCycleCounter(cfg: ReturnType<typeof loadConfig>): Promise<num
       "User-Agent": "SimcoIntel-Backend",
       Accept: "application/vnd.github.v3+json",
     };
-    const res = await githubFetch(`${api}/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}/contents/${CYCLE_COUNTER_PATH}?ref=${cfg.dataRepo.branch}`, { headers });
+    const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}?ref=${cfg.dataRepo.branch}`, { headers });
     if (res.ok) {
       const data = await res.json() as { content: string; sha: string };
       const content = Buffer.from(data.content, "base64").toString("utf-8");
@@ -66,16 +68,18 @@ async function loadCycleCounter(cfg: ReturnType<typeof loadConfig>): Promise<num
 async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: number): Promise<void> {
   if (!cfg.dataRepo.githubToken) return;
   
-  try {
-    const api = `https://api.github.com/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}`;
-    const headers = {
-      Authorization: `Bearer ${cfg.dataRepo.githubToken}`,
-      "Content-Type": "application/json",
-      "User-Agent": "SimcoIntel-Backend",
-      Accept: "application/vnd.github.v3+json",
-    };
-    
-    // Get existing SHA if file exists
+  const api = `https://api.github.com/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}`;
+  const headers = {
+    Authorization: `Bearer ${cfg.dataRepo.githubToken}`,
+    "Content-Type": "application/json",
+    "User-Agent": "SimcoIntel-Backend",
+    Accept: "application/vnd.github.v3+json",
+  };
+  const maxRetries = 3;
+  const baseDelayMs = 500;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    // Get existing SHA if file exists (fresh each attempt)
     let sha: string | null = null;
     try {
       const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}?ref=${cfg.dataRepo.branch}`, { headers: { Authorization: `Bearer ${cfg.dataRepo.githubToken}`, Accept: "application/vnd.github.v3+json" } });
@@ -97,7 +101,7 @@ async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: numbe
     const content = JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2);
     const body: Record<string, unknown> = {
       message: `Update scheduler cycle counter: ${cycle}`,
-      content: Buffer.from(JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2), "utf-8").toString("base64"),
+      content: Buffer.from(content, "utf-8").toString("base64"),
       branch: cfg.dataRepo.branch,
     };
     if (sha) {
@@ -109,22 +113,27 @@ async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: numbe
 
     const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}`, {
       method: "PUT",
-      headers: { Authorization: `Bearer ${cfg.dataRepo.githubToken}`, "Content-Type": "application/json", "User-Agent": "SimcoIntel-Backend", Accept: "application/vnd.github.v3+json" },
+      headers,
       body: JSON.stringify(body),
     });
 
-    if (!res.ok) {
-      const text = await res.text();
-      logger.warn(`Failed to save cycle counter: ${res.status} ${text}`);
-    } else {
+    if (res.ok) {
       logger.debug(`[CycleCounter] Successfully saved cycle ${cycle}`);
+      return;
     }
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      logger.debug(`[CycleCounter] Save timed out after 30s (non-blocking)`);
-    } else {
-      logger.warn("Failed to save cycle counter", err);
+
+    const text = await res.text();
+    
+    // Handle 409 Conflict: retry with fresh SHA
+    if (res.status === 409 && attempt < maxRetries - 1) {
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      logger.warn(`[CycleCounter] 409 Conflict saving cycle counter, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
     }
+
+    logger.warn(`Failed to save cycle counter: ${res.status} ${text}`);
+    return;
   }
 }
 
@@ -138,6 +147,15 @@ function formatUptime(ms: number): string {
 function getCompressIntervalCycles(intervalDays: number, fetchMinutes: number): number {
   const cyclesPerDay = (24 * 60) / fetchMinutes;
   return Math.max(1, Math.round(intervalDays * cyclesPerDay));
+}
+
+function getISOWeek(date: Date): string {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
 }
 
 function shouldFetchGovernmentOrders(cfg: ReturnType<typeof loadConfig>): boolean {
@@ -156,6 +174,13 @@ function shouldFetchGovernmentOrders(cfg: ReturnType<typeof loadConfig>): boolea
   if (currentDay !== targetDay) return false;
   if (currentHour < targetHour) return false;
   if (currentHour === targetHour && currentMinute < targetMinute) return false;
+  
+  // Check if we've already fetched this week (ISO week)
+  const currentWeek = getISOWeek(now);
+  if (lastGovernmentOrdersFetchWeek === currentWeek) {
+    logger.debug(`[GovOrders] Already fetched for week ${currentWeek}, skipping`);
+    return false;
+  }
   
   return true;
 }
@@ -200,7 +225,7 @@ export async function startScheduler(): Promise<void> {
   logger.info(`  dataRepo:        ${cfg.dataRepo.owner}/${cfg.dataRepo.repo}@${cfg.dataRepo.branch}`);
   logger.info("========================================");
 
-  let cycleNumber = 0;
+  let cycleNumber = cycle;
   
   while (!shuttingDown) {
     cycleNumber = ++cycleNumber;
@@ -282,19 +307,42 @@ export async function startScheduler(): Promise<void> {
     }
 
     // Government orders (once per week on Wednesday after 13:00 UTC)
-    const todayStr = new Date().toISOString().slice(0, 10);
-    if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg) && lastGovernmentOrdersFetchDate !== todayStr) {
+    const now = new Date();
+    const currentWeek = getISOWeek(now);
+    const currentDay = now.getUTCDay(); // 0 = Sunday
+    if (cfg.governmentOrders.enableGovernmentOrders && shouldFetchGovernmentOrders(cfg)) {
       const govStart = Date.now();
       try {
         const govResult = await runAllGovernmentOrders();
         if (!govResult.ok) {
           logger.warn("Government orders pipeline had failures");
         } else {
-          lastGovernmentOrdersFetchDate = todayStr;
-          logger.info(`[Cycle ${cycleNumber}] Government orders fetched in ${Date.now() - govStart}ms`);
+          lastGovernmentOrdersFetchWeek = currentWeek;
+          logger.info(`[Cycle ${cycleNumber}] Government orders fetched in ${Date.now() - govStart}ms (week ${currentWeek})`);
         }
       } catch (err) {
         logger.error('Government orders pipeline failed', err);
+      }
+    }
+
+    // Phase coefficients (once per week on Sunday)
+    if (cfg.featureFlags.enableAnalytics && currentDay === 0 && lastPhaseCoefficientWeek !== currentWeek) {
+      const phaseStart = Date.now();
+      try {
+        const phaseResults = await runPhaseCoefficientJob();
+        const allOk = phaseResults.every(r => r.ok);
+        if (!allOk) {
+          logger.warn("Phase coefficient derivation had failures");
+          for (const r of phaseResults) {
+            if (!r.ok) logger.warn(`  Realm ${r.realm}: ${r.errors.join(", ")}`);
+          }
+        } else {
+          const totalCoeffs = phaseResults.reduce((sum, r) => sum + r.coefficients.length, 0);
+          logger.info(`[Cycle ${cycleNumber}] Phase coefficients derived in ${Date.now() - phaseStart}ms: ${totalCoeffs} total across ${phaseResults.length} realms`);
+        }
+        lastPhaseCoefficientWeek = currentWeek;
+      } catch (err) {
+        logger.error('Phase coefficient job failed', err);
       }
     }
 

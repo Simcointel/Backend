@@ -30,6 +30,7 @@ import {
   handlePublicInflation,
   handlePublicStatus,
   handlePublicResources,
+  handlePublicAlerts,
 } from "./routes/public.js";
 import {
   handlePublicExport,
@@ -84,6 +85,7 @@ function buildRouter(): Router {
   r.get("/api/public/indexes", wrapRateLimited(handlePublicIndexes));
   r.get("/api/public/inflation", wrapRateLimited(handlePublicInflation));
   r.get("/api/public/resources", wrapRateLimited(handlePublicResources));
+  r.get("/api/public/alerts", wrapRateLimited(handlePublicAlerts));
   r.get("/api/public/export", (req, res) => {
     if (!rateLimitMiddleware(req, res)) return;
     handlePublicExportList(res);

@@ -77,30 +77,44 @@ export class DataRepoWriter implements IDataRepoWriter {
     const api = this.getApiBase();
     const headers = this.getHeaders();
     const branch = this.config.branch;
+    const maxRetries = 3;
+    const baseDelayMs = 500;
 
-    const sha = await this.getFileSha(api, headers, branch, path);
-    logger.debug(`[DataRepoWriter] Writing file: ${path} (${content.length} chars, sha: ${sha || "new"})`);
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const sha = await this.getFileSha(api, headers, branch, path);
+      logger.debug(`[DataRepoWriter] Writing file: ${path} (${content.length} chars, sha: ${sha || "new"}, attempt ${attempt + 1}/${maxRetries})`);
 
-    const body: Record<string, unknown> = {
-      message,
-      content: Buffer.from(content, "utf-8").toString("base64"),
-      branch,
-    };
-    if (sha) body.sha = sha;
+      const body: Record<string, unknown> = {
+        message,
+        content: Buffer.from(content, "utf-8").toString("base64"),
+        branch,
+      };
+      if (sha) body.sha = sha;
 
-    const res = await githubFetch(`${api}/contents/${encodeURIComponent(path)}`, {
-      method: "PUT",
-      headers,
-      body: JSON.stringify(body),
-    });
+      const res = await githubFetch(`${api}/contents/${encodeURIComponent(path)}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(body),
+      });
 
-    if (!res.ok) {
+      if (res.ok) {
+        logger.debug(`[DataRepoWriter] File written successfully: ${path}`);
+        return;
+      }
+
       const text = await res.text();
+      
+      // Handle 409 Conflict: retry with fresh SHA
+      if (res.status === 409 && attempt < maxRetries - 1) {
+        const delay = baseDelayMs * Math.pow(2, attempt); // exponential backoff
+        logger.warn(`[DataRepoWriter] 409 Conflict for ${path}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
       logger.error(`[DataRepoWriter] Contents API write failed for ${path}: ${res.status} ${text}`);
       throw new StorageError(`Contents API write failed for ${path}: ${res.status} ${text}`);
     }
-
-    logger.debug(`[DataRepoWriter] File written successfully: ${path}`);
   }
 
   private async updateIndex(subDir: string, newFilename: string): Promise<void> {

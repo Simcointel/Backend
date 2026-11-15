@@ -115,17 +115,19 @@ export class SimcoToolsClient {
   private baseUrl: string;
   private lastRequestTime = 0;
   private minInterval: number;
+  private apiKey?: string;
 
-  constructor(realm: number = 0, apiBaseUrl?: string, minInterval = 600) {
+  constructor(realm: number = 0, apiBaseUrl?: string, minInterval = 600, apiKey?: string) {
     const base = apiBaseUrl ? apiBaseUrl.replace(/\/+$/, "") : "https://api.simcotools.com/v1/realms";
     this.baseUrl = `${base}/${realm}`;
     this.minInterval = minInterval;
+    this.apiKey = apiKey;
   }
 
-  static getOrCreate(realm: number, apiBaseUrl?: string, minInterval = 600): SimcoToolsClient {
+  static getOrCreate(realm: number, apiBaseUrl?: string, minInterval = 600, apiKey?: string): SimcoToolsClient {
     const existing = clientPool.get(realm);
     if (existing) return existing;
-    const client = new SimcoToolsClient(realm, apiBaseUrl, minInterval);
+    const client = new SimcoToolsClient(realm, apiBaseUrl, minInterval, apiKey);
     clientPool.set(realm, client);
     return client;
   }
@@ -155,8 +157,13 @@ export class SimcoToolsClient {
 
     logger.debug("API request", url.toString());
 
+    const headers: Record<string, string> = { accept: "application/json" };
+    if (this.apiKey) {
+      headers["Authorization"] = `Bearer ${this.apiKey}`;
+    }
+
     const res = await fetch(url.toString(), {
-      headers: { accept: "application/json" },
+      headers,
       signal,
     });
 

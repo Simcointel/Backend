@@ -19,12 +19,20 @@ import { githubFetch } from "../../storage/dataRepoWriter.js";
 
 const CYCLE_COUNTER_PATH = "meta/scheduler-cycle.json";
 
+let warnedMissingCronSecret = false;
+
 function checkSecret(req: IncomingMessage): boolean {
   const expected = process.env.CRON_SECRET;
-  if (!expected) return true;
+  if (!expected) {
+    if (!warnedMissingCronSecret) {
+      warnedMissingCronSecret = true;
+      logger.error("CRON_SECRET is not set — cron endpoints are disabled (fail closed)");
+    }
+    return false;
+  }
   const auth = req.headers.authorization ?? '';
-  if (!auth.startsWith('Bearer ')) return false;
-  const provided = Buffer.from(auth.slice(7));
+  if (!/^bearer\s/i.test(auth)) return false;
+  const provided = Buffer.from(auth.replace(/^bearer\s+/i, ''));
   const expectedBuf = Buffer.from(expected);
   if (provided.length !== expectedBuf.length) return false;
   return timingSafeEqual(provided, expectedBuf);

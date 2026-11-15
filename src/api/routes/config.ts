@@ -24,6 +24,9 @@ export async function handleListConfig(req: IncomingMessage, res: ServerResponse
 }
 
 export async function handleGetConfig(req: IncomingMessage, res: ServerResponse, section: string): Promise<void> {
+  if (!CONFIG_SECTIONS.includes(section)) {
+    return sendError(res, 404, `Config section '${section}' not found`);
+  }
   let cfg;
   try {
     cfg = loadConfig();

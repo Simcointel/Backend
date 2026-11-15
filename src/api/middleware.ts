@@ -1,8 +1,30 @@
 import { IncomingMessage, ServerResponse } from "http";
+import { timingSafeEqual } from "crypto";
 import { Request, Response } from "express";
 import { logger } from "../logging/logger.js";
 
 type ResponseLike = ServerResponse | Response;
+
+let warnedMissingAdminSecret = false;
+
+// Protects admin-only routes (config writes, actions, scheduler control).
+// Requires ADMIN_SECRET (or CRON_SECRET); fails closed in production if unset.
+export function isAdminAuthorized(req: IncomingMessage): boolean {
+  const expected = process.env.ADMIN_SECRET ?? process.env.CRON_SECRET;
+  if (expected) {
+    const auth = req.headers.authorization ?? "";
+    if (!/^bearer\s/i.test(auth)) return false;
+    const provided = Buffer.from(auth.replace(/^bearer\s+/i, ""));
+    const expectedBuf = Buffer.from(expected);
+    return provided.length === expectedBuf.length && timingSafeEqual(provided, expectedBuf);
+  }
+  if (process.env.NODE_ENV !== "production") return true;
+  if (!warnedMissingAdminSecret) {
+    warnedMissingAdminSecret = true;
+    logger.error("ADMIN_SECRET/CRON_SECRET not set — admin endpoints are disabled (fail closed)");
+  }
+  return false;
+}
 
 export function sendJson(res: ResponseLike, statusCode: number, data: unknown): void {
   if ("status" in res && typeof res.status === "function") {

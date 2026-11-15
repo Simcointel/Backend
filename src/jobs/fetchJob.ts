@@ -94,7 +94,7 @@ export async function runFetchForRealm(realm: number): Promise<FetchResult> {
   const start = Date.now();
   const cfg = loadConfig();
 
-  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl);
+  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl, 600, cfg.simcoTools.apiKey);
   const writer = getDataRepoWriter(cfg.dataRepo);
 
   const retries = cfg.schedules.fetchRetryCount;

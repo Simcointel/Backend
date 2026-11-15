@@ -1,5 +1,6 @@
 export interface SimcoIntelConfig {
   simco: SimcoConfig;
+  simcoTools: SimcoToolsConfig;
   dataRepo: DataRepoConfig;
   logging: LoggingConfig;
   formulas: FormulaConfig;
@@ -62,6 +63,10 @@ export interface GovernmentOrdersConfig {
 export interface SimcoConfig {
   realms: number[];
   apiBaseUrl: string;
+}
+
+export interface SimcoToolsConfig {
+  apiKey?: string;
 }
 
 export interface DataRepoConfig {

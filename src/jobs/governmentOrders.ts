@@ -26,7 +26,7 @@ export interface GovernmentOrdersReport {
 
 export async function fetchGovernmentOrders(realm: number): Promise<GovernmentOrdersResponse> {
   const cfg = loadConfig();
-  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl);
+  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl, 600, cfg.simcoTools.apiKey);
   
   // Government orders endpoint - client baseUrl already includes realm, so use relative path
   const data = await client.getGovernmentOrders();

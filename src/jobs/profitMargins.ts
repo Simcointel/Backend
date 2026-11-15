@@ -187,7 +187,7 @@ export async function computeProfitMargins(realm: number): Promise<ProfitMargins
   const totalLevels = cfg.macroSettings.totalBuildingLevels || 1;
   const adminOverheadPct = Math.max(0, (totalLevels - 1) * 100 / 170) / 100;
 
-  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl);
+  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl, 600, cfg.simcoTools.apiKey);
   const buildingCacheKey = `buildings-${realm}`;
   let buildings = cache.get<Building[]>(buildingCacheKey);
 

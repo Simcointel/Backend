@@ -3,6 +3,7 @@ import { getDataRoot } from "./intelligenceUtils.js";
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import { SimcoToolsClient } from "../api/simcoTools.js";
+import { loadConfig } from "../config/index.js";
 
 export interface ResourceData {
   id: number;
@@ -29,7 +30,8 @@ const RESOURCES_DIR = (realm: number) => `public/realm-${realm}/resources`;
  * Fetch all resources from the Sim Companies API for a realm
  */
 export async function fetchResourcesForRealm(realm: number): Promise<ResourcesSnapshot> {
-  const client = SimcoToolsClient.getOrCreate(realm);
+  const cfg = loadConfig();
+  const client = SimcoToolsClient.getOrCreate(realm, cfg.simco.apiBaseUrl, 600, cfg.simcoTools.apiKey);
   const response = await client.getResources(true);
   return {
     realm,

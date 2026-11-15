@@ -76,3 +76,16 @@ export function handlePublicResources(req: IncomingMessage, res: ServerResponse,
     sendError(res, 500, err instanceof Error ? err.message : "Failed to load resources");
   }
 }
+
+export function handlePublicAlerts(req: IncomingMessage, res: ServerResponse, _params: Record<string, string>, _body: unknown, query: URLSearchParams): void {
+  try {
+    const realm = parseInt(query.get("realm") ?? "0");
+    // For now return empty array - future: integrate with backend alert system
+    sendSuccess(res, {
+      alerts: [] as Array<{ id: string; type: string; title: string; message: string; timestamp: string; realm?: number }>,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    sendError(res, 500, err instanceof Error ? err.message : "Failed to load alerts");
+  }
+}

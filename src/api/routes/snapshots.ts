@@ -1,6 +1,6 @@
 import { IncomingMessage, ServerResponse } from "http";
 import { readdirSync, readFileSync, existsSync, statSync } from "fs";
-import { resolve, join } from "path";
+import { resolve, join, sep } from "path";
 import { sendSuccess, sendError } from "../middleware.js";
 import { loadConfig } from "../../config/index.js";
 
@@ -125,9 +125,10 @@ export async function handleGetSnapshot(req: IncomingMessage, res: ServerRespons
     return sendError(res, 400, `Invalid snapshot type: ${type}`);
   }
 
-  const filePath = resolve(dataPath, "snapshots", type, `realm-${realm}`, file);
+  const realmDir = resolve(dataPath, "snapshots", type, `realm-${realm}`);
+  const filePath = resolve(realmDir, file);
 
-  if (!filePath.startsWith(resolve(dataPath, "snapshots", type))) {
+  if (filePath !== realmDir && !filePath.startsWith(realmDir + sep)) {
     return sendError(res, 403, "Path traversal denied");
   }
 

@@ -18,6 +18,7 @@ import { runAllPriceIndexes } from "./jobs/priceIndex.js";
 import { runAllInflationTracking } from "./jobs/macroInflation.js";
 import { runAllHistorySync, runAllBackfills, runAllMacroArchives } from "./jobs/macroHistory.js";
 import { runAllResourcesFetch } from "./jobs/resources.js";
+import { runAnalytics } from "./jobs/analytics.js";
 
 async function main() {
   const logJson = (obj: unknown) => logger.info(JSON.stringify(obj, null, 2));
@@ -77,7 +78,7 @@ async function main() {
     return;
   }
 
-  const cmd = args[1];
+  const cmd = args[0];
   const dryRun = args.includes("--dry-run");
 
   if (cmd === "public-export") {
@@ -126,6 +127,11 @@ async function main() {
     return;
   }
 
+  if (cmd === "analytics") {
+    logJson(await runAnalytics());
+    return;
+  }
+
   if (cmd === "status") {
     const report = await generateHealthReport();
     const failures = getFailureStatus(cfg.schedules.consecutiveFailureThreshold);
@@ -134,8 +140,8 @@ async function main() {
   }
 
   if (cmd === "admin") {
-    const action = args[2];
-    const paramsArg = args[3];
+    const action = args[1];
+    const paramsArg = args[2];
     let params: Record<string, unknown> | undefined;
     if (paramsArg) {
       try { params = JSON.parse(paramsArg); } catch { params = {}; }
