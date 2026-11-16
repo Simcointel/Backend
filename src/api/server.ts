@@ -264,6 +264,7 @@ export function createApp(): Express {
   app.use("/api/cron", corsMiddleware);
   app.use("/api/health", corsMiddleware);
   app.use("/api/status", corsMiddleware);
+  app.use("/api/openapi.json", corsMiddleware);
 
   // Admin panel served from same origin - no CORS
 
