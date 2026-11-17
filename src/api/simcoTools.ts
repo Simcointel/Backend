@@ -1,5 +1,6 @@
 import { logger } from "../logging/logger.js";
 import { ApiError } from "../errors/errors.js";
+import { getCircuitBreaker, CircuitBreaker } from "./circuitBreaker.js";
 
 export interface Resource {
   id: number;
@@ -116,12 +117,19 @@ export class SimcoToolsClient {
   private lastRequestTime = 0;
   private minInterval: number;
   private apiKey?: string;
+  private circuitBreaker: CircuitBreaker;
 
   constructor(realm: number = 0, apiBaseUrl?: string, minInterval = 600, apiKey?: string) {
     const base = apiBaseUrl ? apiBaseUrl.replace(/\/+$/, "") : "https://api.simcotools.com/v1/realms";
     this.baseUrl = `${base}/${realm}`;
     this.minInterval = minInterval;
     this.apiKey = apiKey;
+    this.circuitBreaker = getCircuitBreaker(`simcotools-realm-${realm}`, {
+      failureThreshold: 5,
+      successThreshold: 2,
+      timeout: 30000,
+      timeoutReset: 60000,
+    });
   }
 
   static getOrCreate(realm: number, apiBaseUrl?: string, minInterval = 600, apiKey?: string): SimcoToolsClient {
@@ -146,37 +154,45 @@ export class SimcoToolsClient {
   }
 
   private async fetchJson<T>(path: string, params?: Record<string, string>, signal?: AbortSignal): Promise<T> {
-    await this.rateLimit();
+    return this.circuitBreaker.execute(
+      async () => {
+        await this.rateLimit();
 
-    const url = new URL(`${this.baseUrl}${path}`);
-    if (params) {
-      for (const [k, v] of Object.entries(params)) {
-        url.searchParams.set(k, v);
+        const url = new URL(`${this.baseUrl}${path}`);
+        if (params) {
+          for (const [k, v] of Object.entries(params)) {
+            url.searchParams.set(k, v);
+          }
+        }
+
+        logger.debug("API request", url.toString());
+
+        const headers: Record<string, string> = { accept: "application/json" };
+        if (this.apiKey) {
+          headers["Authorization"] = `Bearer ${this.apiKey}`;
+        }
+
+        const res = await fetch(url.toString(), {
+          headers,
+          signal,
+        });
+
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new ApiError(
+            `API returned ${res.status} for ${path}`,
+            res.status,
+            body.slice(0, 500),
+          );
+        }
+
+        return (await res.json()) as T;
+      },
+      async () => {
+        logger.warn(`[SimcoToolsClient] Circuit breaker OPEN for ${path}, returning fallback`);
+        throw new ApiError(`Circuit breaker open for ${path}`, 503, "Service temporarily unavailable");
       }
-    }
-
-    logger.debug("API request", url.toString());
-
-    const headers: Record<string, string> = { accept: "application/json" };
-    if (this.apiKey) {
-      headers["Authorization"] = `Bearer ${this.apiKey}`;
-    }
-
-    const res = await fetch(url.toString(), {
-      headers,
-      signal,
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new ApiError(
-        `API returned ${res.status} for ${path}`,
-        res.status,
-        body.slice(0, 500),
-      );
-    }
-
-    return (await res.json()) as T;
+    );
   }
 
   async getResources(disablePagination = true): Promise<ResourcesResponse> {

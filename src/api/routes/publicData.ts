@@ -153,3 +153,53 @@ export function loadMacroInflation(realm: number, limit = 30): { inflation: Macr
   const inflation = readAllFiles<MacroInflationEntry>(inflationDirPath(realm), limit);
   return { inflation, total: inflation.length };
 }
+
+function retailDirPath(realm: number): string {
+  return `aggregates/retail/realm-${realm}`;
+}
+
+function calculatorLiveDirPath(realm: number): string {
+  return `public/realm-${realm}`;
+}
+
+export interface RetailData {
+  ts: string;
+  realm: number;
+  resources: Array<Record<string, unknown>>;
+}
+
+export interface CalculatorLiveData {
+  generatedAt: string;
+  realm: number;
+  economyPhase: string;
+  weatherMultiplier: number;
+  livePrices: Record<number, Record<number, number>>;
+  saturation: Record<number, Record<number, number>>;
+  source: string;
+  dataFreshnessMinutes: number;
+}
+
+export function loadLatestRetailData(realm: number): RetailData | null {
+  const latest = readLatestFile(retailDirPath(realm)) as Record<string, unknown> | null;
+  if (!latest) return null;
+  return {
+    ts: (latest.ts as string) ?? new Date().toISOString(),
+    realm: (latest.r as number) ?? realm,
+    resources: (latest.rs as Array<Record<string, unknown>>) ?? [],
+  };
+}
+
+export function loadLatestCalculatorLive(realm: number): CalculatorLiveData | null {
+  const latest = readLatestFile(calculatorLiveDirPath(realm)) as Record<string, unknown> | null;
+  if (!latest) return null;
+  return {
+    generatedAt: (latest.generatedAt as string) ?? new Date().toISOString(),
+    realm: (latest.realm as number) ?? realm,
+    economyPhase: (latest.economyPhase as string) ?? "Normal",
+    weatherMultiplier: (latest.weatherMultiplier as number) ?? 1.0,
+    livePrices: (latest.livePrices as Record<number, Record<number, number>>) ?? {},
+    saturation: (latest.saturation as Record<number, Record<number, number>>) ?? {},
+    source: (latest.source as string) ?? "simcompanies+simcotools",
+    dataFreshnessMinutes: (latest.dataFreshnessMinutes as number) ?? 5,
+  };
+}

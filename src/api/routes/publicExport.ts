@@ -6,6 +6,8 @@ import {
   loadMacroHistory,
   loadMacroIndexes,
   loadMacroInflation,
+  loadLatestRetailData,
+  loadLatestCalculatorLive,
 } from "./publicData.js";
 import { computeProfitMargins } from "../../jobs/profitMargins.js";
 
@@ -17,7 +19,7 @@ import { computeProfitMargins } from "../../jobs/profitMargins.js";
  */
 
 type Dataset =
-  | "macro" | "history" | "indexes" | "inflation" | "margins";
+  | "macro" | "history" | "indexes" | "inflation" | "margins" | "retail" | "calculator-live";
 
 function toCsv(json: Record<string, unknown> | unknown[]): string {
   const rows = Array.isArray(json) ? json : json ? [json] : [];
@@ -68,6 +70,14 @@ function getDataset(name: string, realm: number, limit: number): { data: unknown
       } catch {
         return { data: null, format: "json" };
       }
+    }
+    case "retail": {
+      const d = loadLatestRetailData(realm);
+      return { data: d, format: "json" };
+    }
+    case "calculator-live": {
+      const d = loadLatestCalculatorLive(realm);
+      return { data: d, format: "json" };
     }
     default:
       return { data: null, format: "json" };
@@ -173,6 +183,8 @@ export function handlePublicExportList(res: ServerResponse): void {
     { name: "indexes", description: "Price indexes (CPI, Core CPI, GDP)", url: "/api/public/export/indexes?realm=0&limit=60" },
     { name: "inflation", description: "Inflation rates", url: "/api/public/export/inflation?realm=0&limit=60" },
     { name: "margins", description: "Profit margins per resource", url: "/api/public/export/margins?realm=0" },
+    { name: "retail", description: "Retail data", url: "/api/public/export/retail?realm=0" },
+    { name: "calculator-live", description: "Calculator live data", url: "/api/public/export/calculator-live?realm=0" },
   ];
   sendSuccess(res, { datasets }, {
     format: "json or csv (add ?format=csv)",

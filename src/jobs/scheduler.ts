@@ -14,12 +14,18 @@ import { runFetchRestaurantRetailInfo } from "./restaurantRetailInfo.js";
 import { runPhaseCoefficientJob } from "../analytics/phaseCoefficients.js";
 import { stopRateLimiter } from "../api/rateLimiter.js";
 import { githubFetch } from "../storage/dataRepoWriter.js";
+import { promises as fs } from "fs";
+import { resolve } from "path";
 
 let shuttingDown = false;
 let schedulerRunning = false;
 let schedulerStartedAt = 0;
 
 const CYCLE_COUNTER_PATH = "meta/scheduler-cycle.json";
+
+function getLocalCycleCounterPath(cfg: ReturnType<typeof loadConfig>): string {
+  return resolve(cfg.dataRepo.path, CYCLE_COUNTER_PATH);
+}
 
 let lastCompressCycle = 1;
 let lastGovernmentOrdersCycle = 0;
@@ -41,7 +47,53 @@ export function shutdown(): void {
 }
 
 async function loadCycleCounter(cfg: ReturnType<typeof loadConfig>): Promise<number> {
+  // Try GitHub first
+  if (cfg.dataRepo.githubToken) {
+    try {
+      const api = `https://api.github.com/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}`;
+      const headers = {
+        Authorization: `Bearer ${cfg.dataRepo.githubToken}`,
+        "Content-Type": "application/json",
+        "User-Agent": "SimcoIntel-Backend",
+        Accept: "application/vnd.github.v3+json",
+      };
+      const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}?ref=${cfg.dataRepo.branch}`, { headers });
+      if (res.ok) {
+        const data = await res.json() as { content: string; sha: string };
+        const content = Buffer.from(data.content, "base64").toString("utf-8");
+        const parsed = JSON.parse(content);
+        logger.debug(`[CycleCounter] Loaded cycle ${parsed.cycle ?? 0} from GitHub`);
+        return parsed.cycle ?? 0;
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        logger.debug(`[CycleCounter] GitHub load timed out after 30s (non-blocking)`);
+      } else {
+        logger.debug(`[CycleCounter] GitHub load failed, will try local: ${err}`);
+      }
+    }
+  }
+
+  // Fallback: load from local data repo
   try {
+    const localPath = getLocalCycleCounterPath(cfg);
+    const content = await fs.readFile(localPath, "utf-8");
+    const parsed = JSON.parse(content);
+    logger.debug(`[CycleCounter] Loaded cycle ${parsed.cycle ?? 0} from local: ${localPath}`);
+    return parsed.cycle ?? 0;
+  } catch (err) {
+    logger.debug(`[CycleCounter] Local load failed (file may not exist): ${err}`);
+  }
+
+  return 0;
+}
+
+async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: number): Promise<void> {
+  const content = JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2);
+  let savedToGitHub = false;
+
+  // Try GitHub first
+  if (cfg.dataRepo.githubToken) {
     const api = `https://api.github.com/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}`;
     const headers = {
       Authorization: `Bearer ${cfg.dataRepo.githubToken}`,
@@ -49,91 +101,78 @@ async function loadCycleCounter(cfg: ReturnType<typeof loadConfig>): Promise<num
       "User-Agent": "SimcoIntel-Backend",
       Accept: "application/vnd.github.v3+json",
     };
-    const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}?ref=${cfg.dataRepo.branch}`, { headers });
-    if (res.ok) {
-      const data = await res.json() as { content: string; sha: string };
-      const content = Buffer.from(data.content, "base64").toString("utf-8");
-      const parsed = JSON.parse(content);
-      return parsed.cycle ?? 0;
-    }
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      logger.debug(`[CycleCounter] Load timed out after 30s (non-blocking)`);
-    }
-    // Counter doesn't exist yet or error reading
-  }
-  return 0;
-}
+    const maxRetries = 3;
+    const baseDelayMs = 500;
 
-async function saveCycleCounter(cfg: ReturnType<typeof loadConfig>, cycle: number): Promise<void> {
-  if (!cfg.dataRepo.githubToken) return;
-  
-  const api = `https://api.github.com/repos/${cfg.dataRepo.owner}/${cfg.dataRepo.repo}`;
-  const headers = {
-    Authorization: `Bearer ${cfg.dataRepo.githubToken}`,
-    "Content-Type": "application/json",
-    "User-Agent": "SimcoIntel-Backend",
-    Accept: "application/vnd.github.v3+json",
-  };
-  const maxRetries = 3;
-  const baseDelayMs = 500;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Get existing SHA if file exists (fresh each attempt)
+      let sha: string | null = null;
+      try {
+        const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}?ref=${cfg.dataRepo.branch}`, { headers: { Authorization: `Bearer ${cfg.dataRepo.githubToken}`, Accept: "application/vnd.github.v3+json" } });
+        if (res.ok) {
+          const data = await res.json() as { sha: string };
+          sha = data.sha;
+          logger.debug(`[CycleCounter] Found existing file, sha: ${sha}`);
+        } else {
+          logger.debug(`[CycleCounter] No existing file or error fetching SHA: ${res.status}`);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          logger.debug(`[CycleCounter] Save timed out after 30s (non-blocking)`);
+        } else {
+          logger.warn(`[CycleCounter] Error fetching SHA: ${err}`);
+        }
+      }
 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    // Get existing SHA if file exists (fresh each attempt)
-    let sha: string | null = null;
-    try {
-      const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}?ref=${cfg.dataRepo.branch}`, { headers: { Authorization: `Bearer ${cfg.dataRepo.githubToken}`, Accept: "application/vnd.github.v3+json" } });
+      const body: Record<string, unknown> = {
+        message: `Update scheduler cycle counter: ${cycle}`,
+        content: Buffer.from(content, "utf-8").toString("base64"),
+        branch: cfg.dataRepo.branch,
+      };
+      if (sha) {
+        (body as any).sha = sha;
+        logger.debug(`[CycleCounter] Updating existing file with sha: ${sha}`);
+      } else {
+        logger.debug(`[CycleCounter] Creating new file (no existing sha)`);
+      }
+
+      const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(body),
+      });
+
       if (res.ok) {
-        const data = await res.json() as { sha: string };
-        sha = data.sha;
-        logger.debug(`[CycleCounter] Found existing file, sha: ${sha}`);
-      } else {
-        logger.debug(`[CycleCounter] No existing file or error fetching SHA: ${res.status}`);
+        logger.debug(`[CycleCounter] Successfully saved cycle ${cycle} to GitHub`);
+        savedToGitHub = true;
+        return;
       }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        logger.debug(`[CycleCounter] Save timed out after 30s (non-blocking)`);
-      } else {
-        logger.warn(`[CycleCounter] Error fetching SHA: ${err}`);
+
+      const text = await res.text();
+      
+      // Handle 409 Conflict: retry with fresh SHA
+      if (res.status === 409 && attempt < maxRetries - 1) {
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        logger.warn(`[CycleCounter] 409 Conflict saving cycle counter, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
       }
+
+      logger.warn(`Failed to save cycle counter to GitHub: ${res.status} ${text}`);
+      break;
     }
+  } else {
+    logger.debug(`[CycleCounter] No GitHub token, skipping GitHub save`);
+  }
 
-    const content = JSON.stringify({ cycle, updatedAt: new Date().toISOString() }, null, 2);
-    const body: Record<string, unknown> = {
-      message: `Update scheduler cycle counter: ${cycle}`,
-      content: Buffer.from(content, "utf-8").toString("base64"),
-      branch: cfg.dataRepo.branch,
-    };
-    if (sha) {
-      (body as any).sha = sha;
-      logger.debug(`[CycleCounter] Updating existing file with sha: ${sha}`);
-    } else {
-      logger.debug(`[CycleCounter] Creating new file (no existing sha)`);
-    }
-
-    const res = await githubFetch(`${api}/contents/${CYCLE_COUNTER_PATH}`, {
-      method: "PUT",
-      headers,
-      body: JSON.stringify(body),
-    });
-
-    if (res.ok) {
-      logger.debug(`[CycleCounter] Successfully saved cycle ${cycle}`);
-      return;
-    }
-
-    const text = await res.text();
-    
-    // Handle 409 Conflict: retry with fresh SHA
-    if (res.status === 409 && attempt < maxRetries - 1) {
-      const delay = baseDelayMs * Math.pow(2, attempt);
-      logger.warn(`[CycleCounter] 409 Conflict saving cycle counter, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
-      await new Promise(r => setTimeout(r, delay));
-      continue;
-    }
-
-    logger.warn(`Failed to save cycle counter: ${res.status} ${text}`);
-    return;
+  // Fallback: save to local data repo (always, even if GitHub succeeded for redundancy)
+  try {
+    const localPath = getLocalCycleCounterPath(cfg);
+    await fs.mkdir(resolve(localPath, ".."), { recursive: true });
+    await fs.writeFile(localPath, content, "utf-8");
+    logger.debug(`[CycleCounter] Saved cycle ${cycle} to local: ${localPath}`);
+  } catch (err) {
+    logger.warn(`[CycleCounter] Failed to save cycle counter locally: ${err}`);
   }
 }
 

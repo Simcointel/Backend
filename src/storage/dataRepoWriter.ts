@@ -4,6 +4,8 @@ import { logger } from "../logging/logger.js";
 import { StorageError } from "../errors/errors.js";
 import { getGithubToken } from "../api/connectAuth.js";
 
+const RATE_LIMIT_WARNING_THRESHOLD = 0.2; // Warn when remaining < 20%
+
 export interface SnapshotPayload {
   timestamp: string;
   snapshotType: string;
@@ -30,6 +32,25 @@ export async function githubFetch(url: string, options: RequestInit): Promise<Re
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+function checkRateLimitHeaders(res: Response, context: string): void {
+  const limit = res.headers.get("X-RateLimit-Limit");
+  const remaining = res.headers.get("X-RateLimit-Remaining");
+  const reset = res.headers.get("X-RateLimit-Reset");
+
+  if (limit && remaining) {
+    const limitNum = parseInt(limit, 10);
+    const remainingNum = parseInt(remaining, 10);
+    const pctRemaining = remainingNum / limitNum;
+
+    if (pctRemaining <= RATE_LIMIT_WARNING_THRESHOLD) {
+      const resetTime = reset ? new Date(parseInt(reset, 10) * 1000).toISOString() : "unknown";
+      logger.warn(`[GitHub RateLimit] ${context}: ${remainingNum}/${limitNum} remaining (${(pctRemaining * 100).toFixed(1)}%), resets at ${resetTime}`);
+    } else if (pctRemaining <= 0.5) {
+      logger.debug(`[GitHub RateLimit] ${context}: ${remainingNum}/${limitNum} remaining (${(pctRemaining * 100).toFixed(1)}%)`);
+    }
   }
 }
 
@@ -97,6 +118,8 @@ export class DataRepoWriter implements IDataRepoWriter {
         body: JSON.stringify(body),
       });
 
+      checkRateLimitHeaders(res, `writeFileViaContentsApi PUT ${path}`);
+
       if (res.ok) {
         logger.debug(`[DataRepoWriter] File written successfully: ${path}`);
         return;
@@ -133,6 +156,7 @@ export class DataRepoWriter implements IDataRepoWriter {
         const api = this.getApiBase();
         const headers = this.getHeaders();
         const res = await githubFetch(`${this.getApiBase()}/contents/${encodeURIComponent(indexPath)}?ref=${this.config.branch}`, { headers: this.getHeaders() });
+        checkRateLimitHeaders(res, `updateIndex GET ${indexPath}`);
         if (res.ok) {
           const data = await res.json() as { content: string; sha: string };
           const content = Buffer.from(data.content, "base64").toString("utf-8");
@@ -161,6 +185,7 @@ export class DataRepoWriter implements IDataRepoWriter {
   private async getFileSha(api: string, headers: Record<string, string>, branch: string, path: string): Promise<string | null> {
     try {
       const res = await githubFetch(`${api}/contents/${encodeURIComponent(path)}?ref=${branch}`, { headers });
+      checkRateLimitHeaders(res, `getFileSha GET ${path}`);
       if (res.ok) {
         const data = (await res.json()) as { sha: string };
         return data.sha;

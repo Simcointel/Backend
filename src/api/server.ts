@@ -33,6 +33,14 @@ import {
   handlePublicAlerts,
 } from "./routes/public.js";
 import {
+  handleSimCompaniesChallengesCurrent,
+  handleSimCompaniesChallengeLeaderboard,
+  handleSimCompaniesMarketTicker,
+  handleSimCompaniesResourcesRetailInfo,
+  handleSimCompaniesCompany,
+  handleSimCompaniesCalculatorLive,
+} from "./routes/simcompanies.js";
+import {
   handlePublicExport,
   handlePublicExportList,
 } from "./routes/publicExport.js";
@@ -94,6 +102,14 @@ function buildRouter(): Router {
   });
   r.get("/api/public/export/:dataset", wrapRateLimited(handlePublicExport));
   r.get("/api/public/sync", wrapRateLimited(handleSync));
+
+  // SimCompanies API Proxy (rate limited)
+  r.get("/api/public/simcompanies/challenges/current", wrapRateLimited(handleSimCompaniesChallengesCurrent));
+  r.get("/api/public/simcompanies/challenges/:challengeId/leaderboard", wrapRateLimited(handleSimCompaniesChallengeLeaderboard));
+  r.get("/api/public/simcompanies/market-ticker/:realmId", wrapRateLimited(handleSimCompaniesMarketTicker));
+  r.get("/api/public/simcompanies/resources-retail-info/:realmId", wrapRateLimited(handleSimCompaniesResourcesRetailInfo));
+  r.get("/api/public/simcompanies/company/:companyId", wrapRateLimited(handleSimCompaniesCompany));
+  r.get("/api/public/simcompanies/calculator-live/:realmId", wrapRateLimited(handleSimCompaniesCalculatorLive));
 
   // Cron (Vercel Cron Jobs) - support both GET and POST for cron services
     r.post("/api/cron/cycle", (req, res) => handleCronCycle(req, res));
