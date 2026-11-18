@@ -111,6 +111,25 @@ function buildRouter(): Router {
   r.get("/api/public/simcompanies/company/:companyId", wrapRateLimited(handleSimCompaniesCompany));
   r.get("/api/public/simcompanies/calculator-live/:realmId", wrapRateLimited(handleSimCompaniesCalculatorLive));
 
+  // Also support paths without /api prefix (for Vercel rewrites that strip it)
+  r.get("/public/simcompanies/challenges/current", wrapRateLimited(handleSimCompaniesChallengesCurrent));
+  r.get("/public/simcompanies/challenges/:challengeId/leaderboard", wrapRateLimited(handleSimCompaniesChallengeLeaderboard));
+  r.get("/public/simcompanies/market-ticker/:realmId", wrapRateLimited(handleSimCompaniesMarketTicker));
+  r.get("/public/simcompanies/resources-retail-info/:realmId", wrapRateLimited(handleSimCompaniesResourcesRetailInfo));
+  r.get("/public/simcompanies/company/:companyId", wrapRateLimited(handleSimCompaniesCompany));
+  r.get("/public/simcompanies/calculator-live/:realmId", wrapRateLimited(handleSimCompaniesCalculatorLive));
+
+  // Public API without /api prefix
+  r.get("/public/macro", wrapRateLimited(handlePublicMacro));
+  r.get("/public/indexes", wrapRateLimited(handlePublicIndexes));
+  r.get("/public/inflation", wrapRateLimited(handlePublicInflation));
+  r.get("/public/resources", wrapRateLimited(handlePublicResources));
+  r.get("/public/alerts", wrapRateLimited(handlePublicAlerts));
+  r.get("/public/status", (req, res) => handlePublicStatus(req, res));
+  r.get("/public/export", (req, res) => { if (!rateLimitMiddleware(req, res)) return; handlePublicExportList(res); });
+  r.get("/public/export/:dataset", wrapRateLimited(handlePublicExport));
+  r.get("/public/sync", wrapRateLimited(handleSync));
+
   // Cron (Vercel Cron Jobs) - support both GET and POST for cron services
     r.post("/api/cron/cycle", (req, res) => handleCronCycle(req, res));
     r.get("/api/cron/cycle", (req, res) => handleCronCycle(req, res));
@@ -276,10 +295,15 @@ export function createApp(): Express {
   };
 
   // Apply CORS to public API routes (external clients)
+  // Vercel rewrites may strip /api prefix, so handle both
   app.use("/api/public", corsMiddleware);
+  app.use("/public", corsMiddleware);
   app.use("/api/cron", corsMiddleware);
+  app.use("/cron", corsMiddleware);
   app.use("/api/health", corsMiddleware);
+  app.use("/health", corsMiddleware);
   app.use("/api/status", corsMiddleware);
+  app.use("/status", corsMiddleware);
   app.use("/api/openapi.json", corsMiddleware);
 
   // Admin panel served from same origin - no CORS
