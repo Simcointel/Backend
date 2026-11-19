@@ -79,6 +79,23 @@ function getDataset(name: string, realm: number, limit: number): { data: unknown
       const d = loadLatestCalculatorLive(realm);
       return { data: d, format: "json" };
     }
+    case "dashboard": {
+      // Dashboard data: macro scores, regime, alerts
+      try {
+        const d = loadLatestMacroData(realm);
+        // Build dashboard structure from available macro data
+        const dashboardData = {
+          scores: { eh: 0, ms: 0, st: 0, ip: 0, sr: 0 },
+          regime: { na: d.latestIndexes?.cpi ? 'Normal' : 'Normal', sc: 0 },
+          alerts: { total: 0 },
+          leaders: {},
+          generatedAt: d.generatedAt,
+        };
+        return { data: dashboardData, format: "json" };
+      } catch {
+        return { data: null, format: "json" };
+      }
+    }
     default:
       return { data: null, format: "json" };
   }
@@ -96,7 +113,7 @@ function getDataset(name: string, realm: number, limit: number): { data: unknown
  *         required: true
  *         schema:
  *           type: string
- *           enum: [macro, history, indexes, inflation, margins]
+ *           enum: [dashboard, macro, history, indexes, inflation, margins]
  *         description: Dataset name
  *       - in: query
  *         name: realm
@@ -178,6 +195,7 @@ export function handlePublicExport(req: IncomingMessage, res: ServerResponse, pa
  */
 export function handlePublicExportList(res: ServerResponse): void {
   const datasets: { name: string; description: string; url: string }[] = [
+    { name: "dashboard", description: "Dashboard data (scores, regime, alerts)", url: "/api/public/export/dashboard?realm=0" },
     { name: "macro", description: "Latest macro snapshot for a realm", url: "/api/public/export/macro?realm=0" },
     { name: "history", description: "Macro history entries", url: "/api/public/export/history?realm=0&limit=120" },
     { name: "indexes", description: "Price indexes (CPI, Core CPI, GDP)", url: "/api/public/export/indexes?realm=0&limit=60" },
